@@ -1,11 +1,11 @@
 {
-    "name": "aerosense_app",
-    "short_name": "aerosense_app",
+    "name": "AeroSense",
+    "short_name": "AeroSense",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "AeroSense Companion App",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

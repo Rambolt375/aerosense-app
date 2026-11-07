@@ -1,0 +1,30 @@
+{
+  "rules": {
+    "system": {
+      ".read": "auth != null",
+      "manualToggle": {
+        ".write": "auth != null",
+        ".validate": "newData.isBoolean()"
+      },
+      "temperature": {
+        ".write": "auth.uid === 'DEVICE_UID_HERE'"
+      },
+      "humidity": {
+        ".write": "auth.uid === 'DEVICE_UID_HERE'"
+      },
+      "airQuality": {
+        ".write": "auth.uid === 'DEVICE_UID_HERE'"
+      },
+      "fanStatus": {
+        ".write": "auth.uid === 'DEVICE_UID_HERE'"
+      },
+      "statusMessage": {
+        ".write": "auth.uid === 'DEVICE_UID_HERE'"
+      }
+    },
+    "history": {
+      ".read": "auth != null",
+      ".write": "auth.uid === 'DEVICE_UID_HERE'"
+    }
+  }
+}

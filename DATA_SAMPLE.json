@@ -1,0 +1,9 @@
+{
+    "system": {
+        "airQuality": 1128,
+        "fanStatus": "OFF",
+        "humidity": 40,
+        "statusMessage": "MEDIUM: Environment is stuffy. Manual toggle available.",
+        "temperature": 24
+    }
+}

@@ -34,6 +34,13 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  flutter_riverpod: ^3.5.0
+  go_router: ^18.1.3
+  firebase_core: ^5.1.0
+  firebase_auth: ^7.0.1
+  firebase_database: ^13.0.1
+  fl_chart: ^1.3.0
+  intl: ^0.20.3
 
 dev_dependencies:
   flutter_test:
@@ -68,22 +75,22 @@ flutter:
   # For details regarding adding assets from package dependencies, see
   # https://flutter.dev/to/asset-from-package
 
-  # To add custom fonts to your application, add a fonts section here,
-  # in this "flutter" section. Each entry in this list should have a
-  # "family" key with the font family name, and a "fonts" key with a
-  # list giving the asset and other descriptors for the font. For
-  # example:
+  # Assets
+  # assets:
+  #   - images/
+
+  # Bundled fonts: Inter (weights 400, 500, 600) per DESIGN.md
+  # TODO(human): Place the following Inter font files in assets/fonts/:
+  #   - assets/fonts/Inter-Regular.ttf (weight 400)
+  #   - assets/fonts/Inter-Medium.ttf  (weight 500)
+  #   - assets/fonts/Inter-SemiBold.ttf (weight 600)
+  # Once added to assets/fonts/, uncomment the block below:
   # fonts:
-  #   - family: Schyler
+  #   - family: Inter
   #     fonts:
-  #       - asset: fonts/Schyler-Regular.ttf
-  #       - asset: fonts/Schyler-Italic.ttf
-  #         style: italic
-  #   - family: Trajan Pro
-  #     fonts:
-  #       - asset: fonts/TrajanPro.ttf
-  #       - asset: fonts/TrajanPro_Bold.ttf
-  #         weight: 700
-  #
-  # For details regarding fonts from package dependencies,
-  # see https://flutter.dev/to/font-from-package
+  #       - asset: assets/fonts/Inter-Regular.ttf
+  #         weight: 400
+  #       - asset: assets/fonts/Inter-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/Inter-SemiBold.ttf
+  #         weight: 600
