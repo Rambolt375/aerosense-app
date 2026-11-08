@@ -1,29 +1,96 @@
+import 'package:aerosense_app/core/time_utils.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 
-/// Live system state read from `/system`.
+/// Parses the ESP32 fanStatus field into a bool.
 ///
-/// NOTE: Defensive model stub for Phase 0. Fleshed out in Phase 1 with
-/// full fromJson / serialization once DATA_SAMPLE.json is provided.
+/// Primary type is String "ON"/"OFF" (confirmed from DATA_SAMPLE.json).
+/// Tolerant of bool in case a future firmware change sends a boolean.
+// TODO(confirm): fanStatus confirmed as String "ON"/"OFF"; bool fallback kept.
+bool _parseFanStatus(dynamic v) {
+  if (v is bool) return v;
+  if (v is String) return v.toUpperCase() == 'ON';
+  return false;
+}
+
+/// Snapshot of live telemetry from the `/system` RTDB node.
+///
+/// Parsed defensively: null/NaN/missing fields produce null values that
+/// render as "--" in the UI. Unknown JSON keys are silently ignored.
 class SystemState {
   const SystemState({
     this.temperature,
     this.humidity,
     this.airQuality,
-    this.fanStatus,
+    this.fanOn = false,
     this.manualToggle = false,
     this.statusMessage = '',
     this.tier = Tier.safe,
-    this.lastSeen,
   });
 
+  /// Returns an empty SystemState used before the first RTDB event arrives.
+  const SystemState.empty()
+    : temperature = null,
+      humidity = null,
+      airQuality = null,
+      fanOn = false,
+      manualToggle = false,
+      statusMessage = '',
+      tier = Tier.safe;
+
+  /// Temperature in °C. Null on DHT22 read failure or missing field.
   final double? temperature;
+
+  /// Relative humidity in % RH. Null on DHT22 read failure or missing field.
   final double? humidity;
+
+  /// Air quality as a raw 12-bit ADC index (0–4095). NOT ppm.
+  /// Null on missing field.
   final double? airQuality;
-  // TODO(confirm): fanStatus type - bool vs string "ON"/"OFF"
-  final dynamic fanStatus;
+
+  /// True when the fan is running (derived from firmware fanStatus field).
+  // fanStatus is String "ON"/"OFF" per firmware; tolerant of bool.
+  final bool fanOn;
+
+  /// The app-written manual toggle. Missing from /system means false;
+  /// the app's first write creates the field.
   final bool manualToggle;
+
+  /// Raw status message from the firmware, displayed verbatim in the UI.
   final String statusMessage;
+
+  /// Resolved tier (primary: statusMessage prefix; fallback: sensor values).
   final Tier tier;
-  // TODO(confirm): lastSeen field availability
-  final DateTime? lastSeen;
+
+  /// Parses a [SystemState] from the raw RTDB snapshot [value].
+  ///
+  /// [value] should be the `DataSnapshot.value` from the `/system` node —
+  /// typed as `Object?` by firebase_database; we expect a `Map` at runtime.
+  factory SystemState.fromJson(Object? value) {
+    if (value == null || value is! Map) return const SystemState.empty();
+    final json = value;
+
+    final temperature = parseSensorDouble(json['temperature']);
+    final humidity = parseSensorDouble(json['humidity']);
+    final airQuality = parseSensorDouble(json['airQuality']);
+    final fanOn = _parseFanStatus(json['fanStatus']);
+    final manualToggle = (json['manualToggle'] as bool?) ?? false;
+    final statusMessage = (json['statusMessage'] as String?) ?? '';
+
+    final tier = Tier.resolve(
+      statusMessage,
+      temperature: temperature,
+      humidity: humidity,
+      airQuality: airQuality,
+    );
+
+    return SystemState(
+      temperature: temperature,
+      humidity: humidity,
+      airQuality: airQuality,
+      fanOn: fanOn,
+      manualToggle: manualToggle,
+      statusMessage: statusMessage,
+      tier: tier,
+    );
+  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aerosense_app/data/models/tier.dart';
 
 /// Semantic colors for Safe, Medium, and Danger tiers per DESIGN.md.
 ///
@@ -73,6 +74,27 @@ class TierColors extends ThemeExtension<TierColors> {
       dangerContainer: Color.lerp(dangerContainer, other.dangerContainer, t)!,
     );
   }
+
+  /// Returns the solid + container color pair for a given tier.
+  TierColorPair forTier(Tier tier) {
+    switch (tier) {
+      case Tier.safe:
+        return TierColorPair(solid: safe, container: safeContainer);
+      case Tier.medium:
+        return TierColorPair(solid: medium, container: mediumContainer);
+      case Tier.danger:
+        return TierColorPair(solid: danger, container: dangerContainer);
+    }
+  }
+}
+
+/// A pair of tier colors: solid (for text, icon, border) and container (for background).
+@immutable
+class TierColorPair {
+  const TierColorPair({required this.solid, required this.container});
+
+  final Color solid;
+  final Color container;
 }
 
 /// Extra theme tokens from DESIGN.md not present in standard M3 ColorScheme.
