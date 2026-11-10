@@ -33,6 +33,23 @@ class HistoryRecord {
   /// Air quality raw ADC index. NOT ppm. Null on parse failure or missing.
   final double? airQuality;
 
+  /// Creates a copy of this record with the given fields replaced.
+  HistoryRecord copyWith({
+    String? pushKey,
+    DateTime? timestamp,
+    double? temperature,
+    double? humidity,
+    double? airQuality,
+  }) {
+    return HistoryRecord(
+      pushKey: pushKey ?? this.pushKey,
+      timestamp: timestamp ?? this.timestamp,
+      temperature: temperature ?? this.temperature,
+      humidity: humidity ?? this.humidity,
+      airQuality: airQuality ?? this.airQuality,
+    );
+  }
+
   /// Parses a [HistoryRecord] from a child snapshot of `/history`.
   ///
   /// [key] is the RTDB push key; [value] is the snapshot's raw value.

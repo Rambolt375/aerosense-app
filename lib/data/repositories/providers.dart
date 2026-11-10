@@ -64,7 +64,12 @@ final systemRepositoryProvider = Provider<SystemRepository>((ref) {
 
 final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
   final isDemo = ref.watch(demoModeProvider);
-  return isDemo ? FakeHistoryRepository() : FirebaseHistoryRepository();
+  if (isDemo) {
+    final repo = FakeHistoryRepository();
+    ref.onDispose(repo.dispose);
+    return repo;
+  }
+  return FirebaseHistoryRepository();
 });
 
 // ---------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:aerosense_app/data/models/history_record.dart';
@@ -141,6 +142,20 @@ class FakeHistoryRepository implements HistoryRepository {
     return all.sublist(all.length - limit);
   }
 
+  final _newRecordsController = StreamController<HistoryRecord>.broadcast();
+
+  /// Emits a new record to [watchNewRecords] subscribers.
+  void emitNewRecord(HistoryRecord record) {
+    if (!_newRecordsController.isClosed) {
+      _newRecordsController.add(record);
+    }
+  }
+
+  /// Closes internal stream controllers.
+  void dispose() {
+    _newRecordsController.close();
+  }
+
   @override
-  Stream<HistoryRecord> watchNewRecords() => const Stream.empty();
+  Stream<HistoryRecord> watchNewRecords() => _newRecordsController.stream;
 }

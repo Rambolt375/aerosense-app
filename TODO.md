@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 3 (✅ COMPLETE — awaiting user review before Phase 4)
+> **Current phase:** 4 (✅ COMPLETE — awaiting user review before Phase 5)
 
 ## Blockers / open questions (owner: human)
 
@@ -56,9 +56,22 @@
 - [x] All 155 tests passing, `flutter analyze` 0 issues
 
 ## Phase 4: History (awaits firmware `/history` generation)
-- [ ] Fetch `limitToLast`, live append via `onChildAdded`
-- [ ] Three charts with Safe/Medium/Danger bands, range selector (1h / 6h / 24h / 7d)
-- [ ] Empty/loading states, gap handling (> ~15 min)
+- [x] Fetch `limitToLast`, live append via `onChildAdded` / `watchNewRecords()`
+- [x] Three synchronized line charts (temperature, humidity, air quality raw index) sharing X time axis
+- [x] Safe / Medium / Danger horizontal threshold bands (12% opacity via `withValues(alpha: 0.12)`), 2 px primary line, no area fill, outline grid at 50% opacity
+- [x] Legend row (dot + label for Safe, Medium, Danger) and threshold lines with labels on the Y-axis so bands are never color-only
+- [x] Responsive Y-axis bounds: `minY = min(dataMin, safeMax) - pad`, `maxY = max(dataMax, dangerMin) + pad` per metric
+- [x] Range selector: 1 h (12 records), 6 h (72 records), 24 h (288 records, default), 7 d (2016 records) via `SegmentedButton`
+- [x] Gap handling: `splitIntoSegments` splits on gaps > 15 min; segments downsampled proportionally with LTTB (LTTB never sees null spots) and flattened with `FlSpot.nullSpot`
+- [x] Timestamp resolution & synthetic fallback: all-null triggers synthetic 5-minute spacing backwards from clock sorted by pushKey; partially null drops null records with warning; never mixes real and synthetic
+- [x] Synthetic-timestamp chip using Medium tier tokens and exact text: "Time axis is estimated: the device isn't sending timestamps."
+- [x] X ticks on round boundaries (1 h: 15 min; 6 h: 1 h; 24 h: 4 h on hour; 7 d: format "EEE d")
+- [x] Pure function merge for live append: dedupes by pushKey (handling `onChildAdded(limitToLast(1))` re-emit), keeps sorted, caps at 2016 records (7 days); subscribes only after initial fetch succeeds; cancels on dispose
+- [x] State management: `HistoryNotifier` with `ref.keepAlive()` and manual retry; derived `historyChartDataProvider`
+- [x] Separate empty states: "No history yet. The device logs every 5 minutes." (0 records total) and "No readings in this range"
+- [x] Accessibility: `Semantics` summary label per chart describing range, current value, min/max, and safe/danger thresholds
+- [x] Clean hook for optional Phase 5 forecast dotted series (`[4, 4]`, `textSecondary`)
+- [x] Unit tests for pipeline (25 tests) and widget tests for history screen (7 tests) passing; 187 total app tests pass clean
 
 ## Phase 5: Forecasting
 - [ ] Least-squares sinusoidal fit (pure Dart) + unit tests
@@ -103,6 +116,7 @@
 - 2026-11-10: Added "Try Demo Mode" `OutlinedButton` to `LoginScreen` allowing unauthenticated and release users to explore Demo Mode without adding third-party persistence dependencies.
 - 2026-11-10: `FakeSystemRepository` mirrors exact firmware contract: no `lastSeen`, raw map omits `manualToggle` until first write, fan forced ON in Danger tier, real status strings from PRD Table III and `DATA_SAMPLE.json`. Timers start on stream listen, stop when all cancel, and dispose when demo mode turns off.
 - 2026-11-10: `FakeHistoryRepository` generates deterministic 2016 records (7 days × 288 points/day, 5-minute spacing) with anchor rounded down to 5-minute boundary, dominant 24 h air quality diurnal wave, and relative anomaly injection flag.
+- 2026-11-10: Phase 4 (History visualization) implemented. Range sizes matched to 5-min logging interval (1 h: 12, 6 h: 72, 24 h: 288, 7 d: 2016). Proportional LTTB downsampling runs strictly within contiguous segments and joins with `FlSpot.nullSpot` to prevent downsampling distortion across missing-data gaps (> 15 min). Threshold bands drawn at 12% opacity with accompanying dot+label legend and Y-axis labeled lines to ensure accessibility without color-only indicators. `historyNotifierProvider` uses `ref.keepAlive()` and `retry: (_, _) => null` with explicit `retry()` reload to cleanly display error states and retry without automatic retry delay loops. Semantics descriptions provided for each metric chart.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

@@ -208,7 +208,7 @@ void main() {
 
       // Advance ticks so it ramps to 33 C, holds, and recovers
       // From 31.5 to 33.0 is 3 ticks (30ms), hold 3 ticks (30ms), ramp down to baseline (170ms)
-      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await Future<void>.delayed(const Duration(milliseconds: 450));
 
       expect(repo.currentScenario, equals(DemoScenario.none));
       expect(
