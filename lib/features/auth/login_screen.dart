@@ -144,6 +144,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               )
                             : const Text('Sign In'),
                       ),
+                      const SizedBox(height: 12),
+                      OutlinedButton(
+                        onPressed: _isLoading
+                            ? null
+                            : () {
+                                ref
+                                    .read(demoModeProvider.notifier)
+                                    .setDemo(true);
+                              },
+                        child: const Text('Try Demo Mode'),
+                      ),
                     ],
                   ),
                 ),

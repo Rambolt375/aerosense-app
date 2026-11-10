@@ -11,23 +11,60 @@ import 'package:aerosense_app/data/repositories/firebase_system_repository.dart'
 import 'package:aerosense_app/data/repositories/history_repository.dart';
 import 'package:aerosense_app/data/repositories/system_repository.dart';
 
+// ---------------------------------------------------------------------------
+// Demo Mode provider
+// ---------------------------------------------------------------------------
+
 /// Compile-time demo flag. Set with --dart-define=DEMO=true.
-const bool _kDemo = bool.fromEnvironment('DEMO', defaultValue: false);
+const bool kDemoDefault = bool.fromEnvironment('DEMO', defaultValue: false);
+
+/// State notifier managing runtime Demo Mode.
+class DemoModeNotifier extends Notifier<bool> {
+  @override
+  bool build() => kDemoDefault;
+
+  /// Toggles demo mode on or off.
+  void toggle() => state = !state;
+
+  /// Sets demo mode explicitly.
+  void setDemo(bool value) => state = value;
+}
+
+/// Dynamic demo mode provider.
+final demoModeProvider = NotifierProvider<DemoModeNotifier, bool>(
+  DemoModeNotifier.new,
+);
 
 // ---------------------------------------------------------------------------
 // Repository providers
 // ---------------------------------------------------------------------------
 
+/// Dedicated [FakeSystemRepository] provider for Demo Mode.
+///
+/// Watches [demoModeProvider] so all timers and controllers are cancelled and
+/// disposed via [FakeSystemRepository.dispose] whenever demo mode is toggled off.
+final fakeSystemRepositoryProvider = Provider<FakeSystemRepository>((ref) {
+  ref.watch(demoModeProvider);
+  final repo = FakeSystemRepository();
+  ref.onDispose(repo.dispose);
+  return repo;
+});
+
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
-  return _kDemo ? FakeAuthRepository() : FirebaseAuthRepository();
+  final isDemo = ref.watch(demoModeProvider);
+  return isDemo ? FakeAuthRepository() : FirebaseAuthRepository();
 });
 
 final systemRepositoryProvider = Provider<SystemRepository>((ref) {
-  return _kDemo ? FakeSystemRepository() : FirebaseSystemRepository();
+  final isDemo = ref.watch(demoModeProvider);
+  return isDemo
+      ? ref.watch(fakeSystemRepositoryProvider)
+      : FirebaseSystemRepository();
 });
 
 final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
-  return _kDemo ? FakeHistoryRepository() : FirebaseHistoryRepository();
+  final isDemo = ref.watch(demoModeProvider);
+  return isDemo ? FakeHistoryRepository() : FirebaseHistoryRepository();
 });
 
 // ---------------------------------------------------------------------------

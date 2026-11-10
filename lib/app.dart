@@ -11,6 +11,7 @@ import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
 import 'package:aerosense_app/features/history/history_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
+import 'package:aerosense_app/shared/demo_ribbon.dart';
 
 // ---------------------------------------------------------------------------
 // Router provider — created once, never rebuilt inside build()
@@ -140,6 +141,23 @@ class AeroSenseApp extends ConsumerWidget {
       darkTheme: AeroSenseTheme.dark,
       themeMode: ThemeMode.system,
       routerConfig: router,
+      builder: (context, child) {
+        final isDemo = ref.watch(demoModeProvider);
+        if (!isDemo) return child ?? const SizedBox.shrink();
+
+        return Column(
+          children: [
+            const DemoRibbon(),
+            Expanded(
+              child: MediaQuery.removePadding(
+                context: context,
+                removeTop: true,
+                child: child ?? const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

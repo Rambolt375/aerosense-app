@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 2 (✅ COMPLETE — awaiting user review before Phase 3)
+> **Current phase:** 3 (✅ COMPLETE — awaiting user review before Phase 4)
 
 ## Blockers / open questions (owner: human)
 
@@ -13,6 +13,8 @@
 - [ ] Confirm whether firmware resets `manualToggle` to `false` on boot
 - [ ] Add Inter font files to `assets/fonts/` (Inter-Regular.ttf, Inter-Medium.ttf, Inter-SemiBold.ttf) and uncomment `fonts` block in `pubspec.yaml`
 - [x] Run `flutterfire configure` to register the Android app in the Firebase project and generate final `firebase_options.dart`
+- [ ] Hardware check: toggle in Medium clicks the relay; locked in Danger (needs real ESP32)
+- [ ] Hardware check: verify real firmware status message strings against PRD Table III assumptions
 
 ## Phase 0: Setup
 - [x] Add dependencies (riverpod, go_router, firebase_*, fl_chart, intl)
@@ -43,9 +45,15 @@
 - [ ] Hardware check: toggle in Medium clicks the relay; locked in Danger (needs real ESP32)
 
 ## Phase 3: Demo Mode (resequenced ahead of History)
-- [ ] Fake repositories wired behind a switch and `--dart-define=DEMO=true`
-- [ ] "DEMO MODE" ribbon on every screen
-- [ ] Scripted Danger spike (kitchen-smoke) button and sinusoidal telemetry generator
+- [x] Fake repositories wired behind a dynamic runtime switch in Settings and `--dart-define=DEMO=true` build flag
+- [x] `demoModeProvider` (`Notifier<bool>`) controlling dynamic repository swapping without app reload
+- [x] Persistent "DEMO MODE" ribbon across all routes per DESIGN.md §5, with `MediaQuery.removePadding(removeTop: true)` for notched screens
+- [x] "Try Demo Mode" button on `LoginScreen` allowing instant unauthenticated evaluation in release builds
+- [x] `FakeSystemRepository` simulating ESP32 firmware: computes tier from `Thresholds`, forces fan ON in Danger, honors `manualToggle` in Safe/Medium, omits `lastSeen`, omits `manualToggle` in raw until first write, uses exact firmware strings
+- [x] Scripted simulation scenarios: kitchen smoke spike & recovery, heat spike ramp (+0.5 °C/tick to ~33 °C) & recovery, and reset to baseline
+- [x] Timer lifecycle management: ticker starts on stream listen, stops when all listeners cancel, disposes when demo mode turns off (verified with test)
+- [x] `FakeHistoryRepository` generating 7-day deterministic diurnal dataset (2016 records, 5-min intervals, anchor rounded to 5-min boundary, dominant 24 h air quality wave, relative anomaly injection flag)
+- [x] All 155 tests passing, `flutter analyze` 0 issues
 
 ## Phase 4: History (awaits firmware `/history` generation)
 - [ ] Fetch `limitToLast`, live append via `onChildAdded`
@@ -90,7 +98,11 @@
 - 2026-11-08: Optimistic manual toggle implemented via Riverpod 3 `Notifier<ManualToggleState>`. Ignores incoming stream while pending; timeout (5 s) falls back to stream and logs `debugPrint` if stream reverted. Reverts immediately if write throws.
 - 2026-11-08: In-router `/splash` preserved with `from` URI parameter (`/splash?from=...`) to redirect back to original requested route upon auth resolution.
 - 2026-11-08: `DashboardScreen` error state uses `skipLoadingOnReload: true` on `systemState.when(...)` so stream failures trigger the error card with Retry rather than staying stuck in retrying loading skeletons.
-
+- 2026-11-10: Phase 3 (Demo Mode) implemented. `demoModeProvider` added as `Notifier<bool>` initialized from `kDemoDefault` (`--dart-define=DEMO=true`). `authRepositoryProvider`, `systemRepositoryProvider`, and `historyRepositoryProvider` dynamically switch between fake and live implementations without app reload.
+- 2026-11-10: `DemoRibbon` rendered in `MaterialApp.router` `builder` across all routes. Child wrapped in `MediaQuery.removePadding(removeTop: true)` to avoid double-padding on notched screens.
+- 2026-11-10: Added "Try Demo Mode" `OutlinedButton` to `LoginScreen` allowing unauthenticated and release users to explore Demo Mode without adding third-party persistence dependencies.
+- 2026-11-10: `FakeSystemRepository` mirrors exact firmware contract: no `lastSeen`, raw map omits `manualToggle` until first write, fan forced ON in Danger tier, real status strings from PRD Table III and `DATA_SAMPLE.json`. Timers start on stream listen, stop when all cancel, and dispose when demo mode turns off.
+- 2026-11-10: `FakeHistoryRepository` generates deterministic 2016 records (7 days × 288 points/day, 5-minute spacing) with anchor rounded down to 5-minute boundary, dominant 24 h air quality diurnal wave, and relative anomaly injection flag.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.
