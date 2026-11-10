@@ -146,5 +146,110 @@ void main() {
       gate.processSample(temperature: 25.4, airQuality: 600.0, time: t);
       expect(gate.tempGate.consecutiveInTolerance, equals(1));
     });
+
+    test(
+      'refit with near-identical model keeps Active and preserves counter',
+      () {
+        final gate = ForecastGate(tempModel: tempModel, aqModel: aqModel);
+        final t = DateTime(2026, 11, 10, 12, 0);
+
+        // Transition to Active with 3 samples
+        for (var i = 0; i < 3; i++) {
+          gate.processSample(temperature: 25.1, airQuality: 600.0, time: t);
+        }
+        expect(gate.tempGate.status, equals(MetricGateStatus.active));
+        expect(gate.tempGate.consecutiveInTolerance, equals(3));
+
+        // Near-identical model: C changes from 25.0 to 25.1
+        // Diff at t is |25.1 - 25.0| = 0.1 <= 0.5 * 0.5 = 0.25
+        final nearIdenticalTemp = DiurnalModel(
+          coefficients: const DiurnalCoefficients(
+            a: 0.0,
+            b: 0.0,
+            c: 25.1,
+            amplitude: 0.0,
+            phase: 0.0,
+            peakSeconds: 0.0,
+          ),
+          residualStdDev: 0.1,
+          effectiveThreshold: 0.5,
+          hasClearDailyPattern: true,
+        );
+
+        gate.tempGate.updateModel(nearIdenticalTemp, now: t);
+        expect(gate.tempGate.status, equals(MetricGateStatus.active));
+        expect(gate.tempGate.consecutiveInTolerance, equals(3));
+        expect(gate.tempGate.model, equals(nearIdenticalTemp));
+      },
+    );
+
+    test(
+      'refit with materially different model locks out and resets counter',
+      () {
+        final gate = ForecastGate(tempModel: tempModel, aqModel: aqModel);
+        final t = DateTime(2026, 11, 10, 12, 0);
+
+        // Transition to Active with 3 samples
+        for (var i = 0; i < 3; i++) {
+          gate.processSample(temperature: 25.1, airQuality: 600.0, time: t);
+        }
+        expect(gate.tempGate.status, equals(MetricGateStatus.active));
+        expect(gate.tempGate.consecutiveInTolerance, equals(3));
+
+        // Materially different model: C changes from 25.0 to 25.6
+        // Diff at t is |25.6 - 25.0| = 0.6 > 0.5 * 0.5 = 0.25
+        final materiallyDifferentTemp = DiurnalModel(
+          coefficients: const DiurnalCoefficients(
+            a: 0.0,
+            b: 0.0,
+            c: 25.6,
+            amplitude: 0.0,
+            phase: 0.0,
+            peakSeconds: 0.0,
+          ),
+          residualStdDev: 0.1,
+          effectiveThreshold: 0.5,
+          hasClearDailyPattern: true,
+        );
+
+        gate.tempGate.updateModel(materiallyDifferentTemp, now: t);
+        expect(gate.tempGate.status, equals(MetricGateStatus.lockedOut));
+        expect(gate.tempGate.consecutiveInTolerance, equals(0));
+        expect(gate.tempGate.model, equals(materiallyDifferentTemp));
+      },
+    );
+
+    test(
+      'noClearPattern state is not active and ignores hysteresis transitions',
+      () {
+        final noiseModel = DiurnalModel(
+          coefficients: const DiurnalCoefficients(
+            a: 0.0,
+            b: 0.0,
+            c: 25.0,
+            amplitude: 0.0,
+            phase: 0.0,
+            peakSeconds: 0.0,
+          ),
+          residualStdDev: 2.0,
+          effectiveThreshold: 6.0,
+          hasClearDailyPattern: false, // R^2 < minR2Pattern
+        );
+
+        final gate = ForecastGate(tempModel: noiseModel, aqModel: aqModel);
+        expect(gate.tempGate.status, equals(MetricGateStatus.noClearPattern));
+        expect(gate.status, equals(ForecastGateStatus.lockedOut));
+
+        final t = DateTime(2026, 11, 10, 12, 0);
+        // Even with 5 in-tolerance samples, remains noClearPattern
+        for (var i = 0; i < 5; i++) {
+          gate.processSample(temperature: 25.0, airQuality: 600.0, time: t);
+        }
+
+        expect(gate.tempGate.status, equals(MetricGateStatus.noClearPattern));
+        expect(gate.tempGate.consecutiveInTolerance, equals(0));
+        expect(gate.status, equals(ForecastGateStatus.lockedOut));
+      },
+    );
   });
 }

@@ -132,5 +132,13 @@
   - Riverpod architecture: `diurnalFitProvider` depends on history records only, not `selectedRangeProvider`, preventing refits on range changes. Sampled forecast dotted curves generated at 120 points across visible chart windows and hooked into Phase 4 charts.
   - UI: `ForecastStatusCard` placed on `ForecastScreen` and on `HistoryScreen` displaying overall status pill, exact explanation copy ("Predictive layer locked out. Deterministic safety logic in control."), per-metric pills with hysteresis count, and predicted peak times. Full parameter diagnostic tables rendered on `ForecastScreen`.
 
+- 2026-11-10: Phase 5 review fixes implemented:
+  - Diurnal model refit tolerance check: `MetricGateTracker.updateModel` preserves gate status and hysteresis counter across periodic refits if $|newModel(now) - oldModel(now)| \le 0.5 \times threshold$. Materially different models restart locked out with 0 counter. Verified with unit tests in `residual_gate_test.dart`.
+  - Replaced amplitude/sigma heuristic with variance explained ($R^2 \ge 0.3$, `AppConfig.minR2Pattern`). Added distinct per-metric status `MetricGateStatus.noClearPattern` (no dotted curve, no peak time, and not shown as Active). Verified with unit tests in `robust_diurnal_fitter_test.dart` and `residual_gate_test.dart`.
+  - Charts and cards decoupled from 2-second telemetry: `ForecastGateNotifier` only emits updates when a status or hysteresis counter changes. Chart series sampling and status cards use `.select(...)` on each metric's own status/model, eliminating redundant UI repaints.
+  - Verified ISO 8601 'Z' suffix parsing returns local time (`toLocal()`), with unit test in `test/parse_timestamp_test.dart`.
+  - Set `AppConfig.minForecastPoints = 576` (2 full days) with architectural comment documenting that a single 24 h cycle cannot rule out transient anomalies or confirm periodic recurrence, while keeping the 24 h span and 20 hourly bins coverage checks.
+  - All 210 tests passing, `flutter analyze` clean (0 issues).
+
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

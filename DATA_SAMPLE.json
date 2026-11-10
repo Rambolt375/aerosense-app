@@ -5,5 +5,13 @@
         "humidity": 40,
         "statusMessage": "MEDIUM: Environment is stuffy. Manual toggle available.",
         "temperature": 24
+    },
+    "history": {
+        "-P64-1D61sKIvsYSY7_l": {
+            "airQuality": 1088,
+            "humidity": 63,
+            "temperature": 30.6,
+            "timestamp": 1794306483
+        }
     }
 }

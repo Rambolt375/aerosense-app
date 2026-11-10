@@ -139,7 +139,30 @@ class HistoryChartData {
 final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
   final historyAsync = ref.watch(historyNotifierProvider);
   final range = ref.watch(selectedRangeProvider);
-  final gate = ref.watch(forecastGateNotifierProvider);
+
+  // Uses select so charts only re-evaluate when each metric's own forecast status or model changes (Review fix 3)
+  final tempForecastActive = ref.watch(
+    forecastGateNotifierProvider.select(
+      (g) =>
+          g.tempGate.status == MetricGateStatus.active &&
+          g.tempGate.model != null &&
+          g.tempGate.model!.hasClearDailyPattern,
+    ),
+  );
+  final aqForecastActive = ref.watch(
+    forecastGateNotifierProvider.select(
+      (g) =>
+          g.aqGate.status == MetricGateStatus.active &&
+          g.aqGate.model != null &&
+          g.aqGate.model!.hasClearDailyPattern,
+    ),
+  );
+  final tempModel = ref.watch(
+    forecastGateNotifierProvider.select((g) => g.tempGate.model),
+  );
+  final aqModel = ref.watch(
+    forecastGateNotifierProvider.select((g) => g.aqGate.model),
+  );
 
   return historyAsync.whenData((historyState) {
     if (historyState.allRecords.isEmpty) {
@@ -278,23 +301,19 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       fractionDigits: 0,
     );
 
-    // Step 8: Sample forecast dotted series if active
-    final tempForecast =
-        (gate.tempGate.status == MetricGateStatus.active &&
-            gate.tempGate.model != null)
+    // Step 8: Sample forecast dotted series if metric is individually active with clear pattern
+    final tempForecast = (tempForecastActive && tempModel != null)
         ? sampleForecastSeries(
-            model: gate.tempGate.model!,
+            model: tempModel,
             minX: xConfig.minX,
             maxX: xConfig.maxX,
             pointCount: 120,
           )
         : null;
 
-    final aqForecast =
-        (gate.aqGate.status == MetricGateStatus.active &&
-            gate.aqGate.model != null)
+    final aqForecast = (aqForecastActive && aqModel != null)
         ? sampleForecastSeries(
-            model: gate.aqGate.model!,
+            model: aqModel,
             minX: xConfig.minX,
             maxX: xConfig.maxX,
             pointCount: 120,

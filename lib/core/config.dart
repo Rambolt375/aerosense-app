@@ -10,8 +10,13 @@ class AppConfig {
   static const String databaseUrl =
       'https://aerosense-502de-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  /// Minimum historical records required for diurnal forecast (~3 days at 5-min intervals).
-  static const int minForecastPoints = 864;
+  /// Minimum historical records required for diurnal forecast (2 days at 5-min intervals = 576 points).
+  ///
+  /// A single 24-hour cycle (288 points) is insufficient evidence on its own because
+  /// transient atypical room usage, weather anomalies, or sensor shifts can easily be
+  /// misinterpreted as a recurring wave. Requiring at least 2 full days ensures periodicity
+  /// repeats across multiple days before trusting the predictive model.
+  static const int minForecastPoints = 576;
 
   /// Minimum records required in Demo mode or when short-history forecast is enabled (~3 hours).
   static const int demoForecastPoints = 36;
@@ -47,9 +52,10 @@ class AppConfig {
   /// NOTE: NOT tuned on fake data; recalibrate on real logs.
   static const double minAqTolerance = 30.0;
 
-  /// Minimum ratio of diurnal amplitude to residual standard deviation (A / sigma).
-  /// If amplitude is too small relative to residual noise, the room has no clear daily pattern.
+  /// Minimum variance explained (R^2) required to declare a clear daily pattern.
+  /// If R^2 < 0.3, the diurnal sinusoid accounts for less than 30% of total variance,
+  /// indicating pure noise or a non-periodic environment without a clear daily cycle.
   ///
   /// NOTE: NOT tuned on fake data; recalibrate on real logs.
-  static const double minAmplitudeRatio = 0.4;
+  static const double minR2Pattern = 0.3;
 }

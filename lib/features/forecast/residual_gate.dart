@@ -14,6 +14,9 @@ enum MetricGateStatus {
 
   /// Device history lacks real RTC/NTP timestamps.
   waitingForTimestamps,
+
+  /// Model does not explain sufficient variance (R^2 < minR2Pattern); no periodic diurnal pattern.
+  noClearPattern,
 }
 
 /// Overall combined status for the diurnal forecasting engine.
@@ -40,8 +43,9 @@ class MetricGateTracker {
   }) : status =
            initialStatus ??
            (model != null
-               ? MetricGateStatus
-                     .lockedOut // FR-6 rule: start locked out after fit
+               ? (!model.hasClearDailyPattern
+                     ? MetricGateStatus.noClearPattern
+                     : MetricGateStatus.lockedOut)
                : MetricGateStatus.learning),
        consecutiveInTolerance = 0,
        threshold = model?.effectiveThreshold ?? 0.0;
@@ -62,6 +66,11 @@ class MetricGateTracker {
   void processSample(double? value, DateTime time) {
     if (value == null || value.isNaN) return;
     if (model == null) return;
+    if (!model!.hasClearDailyPattern) {
+      status = MetricGateStatus.noClearPattern;
+      consecutiveInTolerance = 0;
+      return;
+    }
 
     final yHat = model!.predictDateTime(time);
     final error = (value - yHat).abs();
@@ -71,7 +80,9 @@ class MetricGateTracker {
     lastError = error;
 
     if (error <= threshold) {
-      consecutiveInTolerance++;
+      if (consecutiveInTolerance < AppConfig.forecastHysteresisSamples) {
+        consecutiveInTolerance++;
+      }
       if (consecutiveInTolerance >= AppConfig.forecastHysteresisSamples) {
         status = MetricGateStatus.active;
       }
@@ -81,21 +92,59 @@ class MetricGateTracker {
     }
   }
 
-  /// Updates the underlying model, re-initializing to [MetricGateStatus.lockedOut]
-  /// with 0 consecutive samples per requirement 7.
-  void updateModel(DiurnalModel? newModel, {DiurnalFitStatus? fitStatus}) {
-    model = newModel;
+  /// Updates the underlying model on a refit.
+  ///
+  /// If the new model's prediction at [now] differs by <= 0.5 * threshold from
+  /// the old model, the gate status and hysteresis counter are preserved.
+  /// Otherwise, resets to [MetricGateStatus.lockedOut] with 0 counter.
+  void updateModel(
+    DiurnalModel? newModel, {
+    DiurnalFitStatus? fitStatus,
+    DateTime? now,
+  }) {
     if (fitStatus == DiurnalFitStatus.waitingForTimestamps) {
+      model = newModel;
       status = MetricGateStatus.waitingForTimestamps;
       consecutiveInTolerance = 0;
-    } else if (newModel == null) {
+      return;
+    }
+
+    if (newModel == null) {
+      model = null;
       status = MetricGateStatus.learning;
       consecutiveInTolerance = 0;
-    } else {
-      threshold = newModel.effectiveThreshold;
-      status = MetricGateStatus.lockedOut;
-      consecutiveInTolerance = 0;
+      return;
     }
+
+    if (!newModel.hasClearDailyPattern) {
+      model = newModel;
+      threshold = newModel.effectiveThreshold;
+      status = MetricGateStatus.noClearPattern;
+      consecutiveInTolerance = 0;
+      return;
+    }
+
+    final oldModel = model;
+    final currentTime = now ?? DateTime.now();
+
+    if (oldModel != null && oldModel.hasClearDailyPattern) {
+      final oldPred = oldModel.predictDateTime(currentTime);
+      final newPred = newModel.predictDateTime(currentTime);
+      final diff = (newPred - oldPred).abs();
+
+      if (diff <= 0.5 * threshold) {
+        // Model prediction shifted insignificantly: keep status and hysteresis counter
+        model = newModel;
+        threshold = newModel.effectiveThreshold;
+        return;
+      }
+    }
+
+    // Materially different model or initial fit: start locked out
+    model = newModel;
+    threshold = newModel.effectiveThreshold;
+    status = MetricGateStatus.lockedOut;
+    consecutiveInTolerance = 0;
   }
 
   /// Creates an identical copy of this tracker preserving state.
@@ -128,7 +177,9 @@ class ForecastGate {
              ? MetricGateStatus.waitingForTimestamps
              : (tempModel == null
                    ? MetricGateStatus.learning
-                   : MetricGateStatus.lockedOut),
+                   : (!tempModel.hasClearDailyPattern
+                         ? MetricGateStatus.noClearPattern
+                         : MetricGateStatus.lockedOut)),
        ),
        aqGate = MetricGateTracker(
          metricName: 'Air Quality',
@@ -137,11 +188,26 @@ class ForecastGate {
              ? MetricGateStatus.waitingForTimestamps
              : (aqModel == null
                    ? MetricGateStatus.learning
-                   : MetricGateStatus.lockedOut),
+                   : (!aqModel.hasClearDailyPattern
+                         ? MetricGateStatus.noClearPattern
+                         : MetricGateStatus.lockedOut)),
        );
 
   final MetricGateTracker tempGate;
   final MetricGateTracker aqGate;
+
+  /// Updates the underlying metric models across a refit, preserving gate states
+  /// if predictions at [now] are within tolerance.
+  void updateModels({
+    DiurnalModel? tempModel,
+    DiurnalModel? aqModel,
+    DiurnalFitStatus? tempFitStatus,
+    DiurnalFitStatus? aqFitStatus,
+    DateTime? now,
+  }) {
+    tempGate.updateModel(tempModel, fitStatus: tempFitStatus, now: now);
+    aqGate.updateModel(aqModel, fitStatus: aqFitStatus, now: now);
+  }
 
   /// Creates an identical copy of this gate with fresh tracker clones.
   ForecastGate clone() {
@@ -163,7 +229,7 @@ class ForecastGate {
   }
 
   /// Combined status resolving worst state:
-  /// waitingForTimestamps > learning > lockedOut > active
+  /// waitingForTimestamps > learning > lockedOut (incl. noClearPattern) > active
   ForecastGateStatus get status {
     if (tempGate.status == MetricGateStatus.waitingForTimestamps ||
         aqGate.status == MetricGateStatus.waitingForTimestamps) {
@@ -174,7 +240,9 @@ class ForecastGate {
       return ForecastGateStatus.learning;
     }
     if (tempGate.status == MetricGateStatus.lockedOut ||
-        aqGate.status == MetricGateStatus.lockedOut) {
+        aqGate.status == MetricGateStatus.lockedOut ||
+        tempGate.status == MetricGateStatus.noClearPattern ||
+        aqGate.status == MetricGateStatus.noClearPattern) {
       return ForecastGateStatus.lockedOut;
     }
     return ForecastGateStatus.active;

@@ -51,6 +51,7 @@ class DiurnalModel {
     required this.residualStdDev,
     required this.effectiveThreshold,
     required this.hasClearDailyPattern,
+    this.rSquared = 0.0,
   });
 
   /// Sinusoidal coefficients (a, b, C, A, phi, peakSeconds).
@@ -62,9 +63,12 @@ class DiurnalModel {
   /// Effective tolerance threshold: max(k * residualStdDev, noiseFloor).
   final double effectiveThreshold;
 
-  /// Whether the wave amplitude is sufficiently large relative to residual noise.
+  /// Whether the wave explains sufficient variance (R^2 >= minR2Pattern).
   /// If false, the room has no clear daily pattern (peak time is hidden).
   final bool hasClearDailyPattern;
+
+  /// Fraction of variance explained by the diurnal sinusoidal wave (0.0 to 1.0).
+  final double rSquared;
 
   /// Amplitude A of the 24 h wave.
   double get amplitude => coefficients.amplitude;
@@ -116,14 +120,14 @@ class DiurnalFitResult {
 /// 3. Pass 1: Initial ordinary least-squares fit across all valid points.
 /// 4. Outlier rejection: Computes 1.4826 * MAD of residuals and filters inliers (|r| <= 3 * scale).
 /// 5. Pass 2: Re-fits on inliers to prevent anomaly distortion and threshold inflation.
-/// 6. Enforces sensor accuracy floor (DHT22 0.5 °C / AQ floor) and checks amplitude vs noise.
+/// 6. Enforces sensor accuracy floor (DHT22 0.5 °C / AQ floor) and checks variance explained (R^2).
 DiurnalFitResult fitRobustDiurnal({
   required List<HistoryRecord> records,
   required double? Function(HistoryRecord) extractor,
   required double noiseFloor,
   bool isDemo = false,
   double sigmaMultiplier = AppConfig.forecastSigmaMultiplier,
-  double minAmplitudeRatio = AppConfig.minAmplitudeRatio,
+  double minR2Pattern = AppConfig.minR2Pattern,
 }) {
   if (records.isEmpty) {
     return const DiurnalFitResult(
@@ -242,13 +246,23 @@ DiurnalFitResult fitRobustDiurnal({
   final evalTimes = inlierTimes.length >= 3 ? inlierTimes : times;
   final evalValues = inlierValues.length >= 3 ? inlierValues : values;
 
-  // 6. Compute inlier residual standard deviation
+  // 6. Compute inlier residual standard deviation and variance explained (R^2)
   var sumSq = 0.0;
+  var sumY = 0.0;
+  for (var i = 0; i < evalTimes.length; i++) {
+    sumY += evalValues[i];
+  }
+  final meanY = sumY / evalTimes.length;
+
+  var ssTot = 0.0;
   for (var i = 0; i < evalTimes.length; i++) {
     final diff = evalValues[i] - pass2.predict(evalTimes[i]);
     sumSq += diff * diff;
+    final devMean = evalValues[i] - meanY;
+    ssTot += devMean * devMean;
   }
   final residualStdDev = math.sqrt(sumSq / evalTimes.length);
+  final rSquared = ssTot > 0.0 ? (1.0 - (sumSq / ssTot)) : 0.0;
 
   // Effective confidence threshold: max(k * stddev, noiseFloor)
   final effectiveThreshold = math.max(
@@ -256,10 +270,8 @@ DiurnalFitResult fitRobustDiurnal({
     noiseFloor,
   );
 
-  // 7. Check if amplitude is large enough relative to residual noise
-  final hasClearDailyPattern =
-      residualStdDev == 0.0 ||
-      (pass2.amplitude / residualStdDev >= minAmplitudeRatio);
+  // 7. Check if variance explained (R^2) meets pattern threshold
+  final hasClearDailyPattern = rSquared >= minR2Pattern;
 
   return DiurnalFitResult(
     status: DiurnalFitStatus.ready,
@@ -268,6 +280,7 @@ DiurnalFitResult fitRobustDiurnal({
       residualStdDev: residualStdDev,
       effectiveThreshold: effectiveThreshold,
       hasClearDailyPattern: hasClearDailyPattern,
+      rSquared: rSquared,
     ),
   );
 }

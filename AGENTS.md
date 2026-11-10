@@ -2,7 +2,7 @@
 
 Flutter app (Android + Web) for the AeroSense IoT ventilation system. Reads live and historical data from Firebase Realtime Database, shows it, and sends one command: the manual fan toggle.
 
-**Read `PRD_AeroSense_App.md` before starting any task.** It is the source of truth for scope, data contract, and build phases. Work one phase at a time and stop to report after each.
+**Read `PRD_AEROSENSE_APP.md` before starting any task.** It is the source of truth for scope, data contract, and build phases. Work one phase at a time and stop to report after each.
 
 ## Non-negotiables
 

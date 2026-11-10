@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/features/forecast/forecast_providers.dart';
+import 'package:aerosense_app/features/forecast/residual_gate.dart';
+import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
 
 /// Diurnal forecasting screen (PRD §FR-6).
@@ -15,7 +17,23 @@ class ForecastScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gate = ref.watch(forecastGateNotifierProvider);
+    // Uses select so widgets do not repaint every 2 s (Review fix 3)
+    final tempStatus = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.tempGate.status),
+    );
+    final tempConsecutive = ref.watch(
+      forecastGateNotifierProvider.select(
+        (g) => g.tempGate.consecutiveInTolerance,
+      ),
+    );
+    final aqStatus = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.aqGate.status),
+    );
+    final aqConsecutive = ref.watch(
+      forecastGateNotifierProvider.select(
+        (g) => g.aqGate.consecutiveInTolerance,
+      ),
+    );
     final fitState = ref.watch(diurnalFitProvider);
 
     return Scaffold(
@@ -38,14 +56,15 @@ class ForecastScreen extends ConsumerWidget {
                   const ForecastStatusCard(),
                   const SizedBox(height: 16),
 
-                  // 2. Metric Details Cards
+                  // 2. Metric Details Cards using each metric's own gate status
                   _buildMetricDetailCard(
                     context: context,
                     title: 'Temperature model',
                     unit: '°C',
                     icon: Icons.thermostat_outlined,
                     model: fitState.temperatureResult.model,
-                    tracker: gate.tempGate,
+                    status: tempStatus,
+                    consecutive: tempConsecutive,
                     fractionDigits: 1,
                   ),
                   const SizedBox(height: 16),
@@ -55,7 +74,8 @@ class ForecastScreen extends ConsumerWidget {
                     unit: 'index',
                     icon: Icons.air_outlined,
                     model: fitState.airQualityResult.model,
-                    tracker: gate.aqGate,
+                    status: aqStatus,
+                    consecutive: aqConsecutive,
                     fractionDigits: 0,
                   ),
                 ],
@@ -72,8 +92,9 @@ class ForecastScreen extends ConsumerWidget {
     required String title,
     required String unit,
     required IconData icon,
-    required dynamic model,
-    required dynamic tracker,
+    required DiurnalModel? model,
+    required MetricGateStatus status,
+    required int consecutive,
     required int fractionDigits,
   }) {
     final theme = Theme.of(context);
@@ -93,6 +114,8 @@ class ForecastScreen extends ConsumerWidget {
                   Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
                   const SizedBox(width: 8),
                   Text(title, style: textTheme.titleMedium),
+                  const Spacer(),
+                  _buildMetricBadge(context, status, consecutive),
                 ],
               ),
               const SizedBox(height: 12),
@@ -111,9 +134,6 @@ class ForecastScreen extends ConsumerWidget {
     final double c = model.c;
     final double amp = model.amplitude;
     final double thresh = model.effectiveThreshold;
-    final double? lastErr = tracker.lastError;
-    final double? liveVal = tracker.lastLiveValue;
-    final double? predVal = tracker.lastPredictedValue;
 
     return Card(
       child: Padding(
@@ -127,13 +147,7 @@ class ForecastScreen extends ConsumerWidget {
                 const SizedBox(width: 8),
                 Text(title, style: textTheme.titleMedium),
                 const Spacer(),
-                Text(
-                  'ŷ = A·sin(ωt+φ) + C',
-                  style: textTheme.labelSmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
+                _buildMetricBadge(context, status, consecutive),
               ],
             ),
             const SizedBox(height: 16),
@@ -171,7 +185,7 @@ class ForecastScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // Live Diagnostics
+            // Model Formula & Variance Explained
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -181,32 +195,73 @@ class ForecastScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   Text(
-                    'Residual error (E): ',
-                    style: textTheme.bodySmall?.copyWith(
+                    'ŷ = A·sin(ωt+φ) + C',
+                    style: textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  Text(
-                    lastErr != null
-                        ? '${lastErr.toStringAsFixed(fractionDigits)} $unit'
-                        : '--',
-                    style: textTheme.bodySmall?.copyWith(
-                      fontWeight: FontWeight.w600,
+                      fontStyle: FontStyle.italic,
                     ),
                   ),
                   const Spacer(),
-                  if (liveVal != null && predVal != null)
-                    Text(
-                      'Live ${liveVal.toStringAsFixed(fractionDigits)} / Pred ${predVal.toStringAsFixed(fractionDigits)} $unit',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+                  Text(
+                    'Variance explained (R²): ${(model.rSquared * 100).toStringAsFixed(1)}%',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
                     ),
+                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMetricBadge(
+    BuildContext context,
+    MetricGateStatus status,
+    int consecutive,
+  ) {
+    final tierColors = context.tierColors;
+    final appColors = context.appColors;
+    final Color color;
+    final String label;
+
+    switch (status) {
+      case MetricGateStatus.active:
+        color = tierColors.safe;
+        label = 'Active';
+        break;
+      case MetricGateStatus.lockedOut:
+        color = tierColors.medium;
+        label = 'Locked out ($consecutive/3)';
+        break;
+      case MetricGateStatus.learning:
+        color = appColors.textTertiary;
+        label = 'Learning';
+        break;
+      case MetricGateStatus.waitingForTimestamps:
+        color = tierColors.medium;
+        label = 'No timestamps';
+        break;
+      case MetricGateStatus.noClearPattern:
+        color = appColors.textTertiary;
+        label = 'No daily pattern';
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: appColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color, width: 1),
+      ),
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall
+            ?.copyWith(color: color, fontWeight: FontWeight.w600),
       ),
     );
   }

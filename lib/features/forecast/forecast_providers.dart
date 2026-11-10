@@ -63,22 +63,50 @@ class ForecastGateNotifier extends Notifier<ForecastGate> {
     final fitState = ref.watch(diurnalFitProvider);
     final systemRepo = ref.watch(systemRepositoryProvider);
 
-    final gate = ForecastGate(
-      tempModel: fitState.temperatureResult.model,
-      aqModel: fitState.airQualityResult.model,
-      tempFitStatus: fitState.temperatureResult.status,
-      aqFitStatus: fitState.airQualityResult.status,
-    );
+    final previousGate = stateOrNull;
+    final ForecastGate gate;
+
+    if (previousGate != null) {
+      gate = previousGate.clone();
+      gate.updateModels(
+        tempModel: fitState.temperatureResult.model,
+        aqModel: fitState.airQualityResult.model,
+        tempFitStatus: fitState.temperatureResult.status,
+        aqFitStatus: fitState.airQualityResult.status,
+      );
+    } else {
+      gate = ForecastGate(
+        tempModel: fitState.temperatureResult.model,
+        aqModel: fitState.airQualityResult.model,
+        tempFitStatus: fitState.temperatureResult.status,
+        aqFitStatus: fitState.airQualityResult.status,
+      );
+    }
 
     _systemSub?.cancel();
     _systemSub = systemRepo.watchSystemState().listen((sample) {
+      final oldTempStatus = state.tempGate.status;
+      final oldTempConsecutive = state.tempGate.consecutiveInTolerance;
+      final oldAqStatus = state.aqGate.status;
+      final oldAqConsecutive = state.aqGate.consecutiveInTolerance;
+
       final updated = state.clone();
       updated.processSample(
         temperature: sample.temperature,
         airQuality: sample.airQuality,
         time: DateTime.now(),
       );
-      state = updated;
+
+      // Only update state when a status or hysteresis counter changes (Review fix 3)
+      final statusOrCounterChanged =
+          oldTempStatus != updated.tempGate.status ||
+          oldTempConsecutive != updated.tempGate.consecutiveInTolerance ||
+          oldAqStatus != updated.aqGate.status ||
+          oldAqConsecutive != updated.aqGate.consecutiveInTolerance;
+
+      if (statusOrCounterChanged) {
+        state = updated;
+      }
     });
 
     ref.onDispose(() => _systemSub?.cancel());

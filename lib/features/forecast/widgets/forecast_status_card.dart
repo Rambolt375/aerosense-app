@@ -19,7 +19,29 @@ class ForecastStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final gate = ref.watch(forecastGateNotifierProvider);
+    // Uses select so this card doesn't repaint unless status or counters change (Review fix 3)
+    final overallStatus = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.status),
+    );
+    final explanation = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.statusExplanation),
+    );
+    final tempStatus = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.tempGate.status),
+    );
+    final tempConsecutive = ref.watch(
+      forecastGateNotifierProvider.select(
+        (g) => g.tempGate.consecutiveInTolerance,
+      ),
+    );
+    final aqStatus = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.aqGate.status),
+    );
+    final aqConsecutive = ref.watch(
+      forecastGateNotifierProvider.select(
+        (g) => g.aqGate.consecutiveInTolerance,
+      ),
+    );
     final fitState = ref.watch(diurnalFitProvider);
 
     final theme = Theme.of(context);
@@ -27,9 +49,6 @@ class ForecastStatusCard extends ConsumerWidget {
     final appColors = context.appColors;
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
-
-    final overallStatus = gate.status;
-    final explanation = gate.statusExplanation;
 
     return Card(
       child: Padding(
@@ -61,21 +80,25 @@ class ForecastStatusCard extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
 
-            // Per-metric status pills row
+            // Per-metric status pills row using each metric's own gate status
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 _buildMetricPill(
                   context: context,
-                  tracker: gate.tempGate,
+                  metricName: 'Temperature',
+                  status: tempStatus,
+                  consecutiveInTolerance: tempConsecutive,
                   fitResult: fitState.temperatureResult,
                   tierColors: tierColors,
                   appColors: appColors,
                 ),
                 _buildMetricPill(
                   context: context,
-                  tracker: gate.aqGate,
+                  metricName: 'Air Quality',
+                  status: aqStatus,
+                  consecutiveInTolerance: aqConsecutive,
                   fitResult: fitState.airQualityResult,
                   tierColors: tierColors,
                   appColors: appColors,
@@ -89,6 +112,8 @@ class ForecastStatusCard extends ConsumerWidget {
             // Predicted Daily Peak Times Section
             _buildPredictedPeaks(
               context: context,
+              tempStatus: tempStatus,
+              aqStatus: aqStatus,
               fitState: fitState,
               colorScheme: colorScheme,
               textTheme: textTheme,
@@ -165,7 +190,9 @@ class ForecastStatusCard extends ConsumerWidget {
 
   Widget _buildMetricPill({
     required BuildContext context,
-    required MetricGateTracker tracker,
+    required String metricName,
+    required MetricGateStatus status,
+    required int consecutiveInTolerance,
     required DiurnalFitResult fitResult,
     required TierColors tierColors,
     required AppColors appColors,
@@ -173,15 +200,14 @@ class ForecastStatusCard extends ConsumerWidget {
     final Color dotColor;
     final String statusText;
 
-    switch (tracker.status) {
+    switch (status) {
       case MetricGateStatus.active:
         dotColor = tierColors.safe;
         statusText = 'Active';
         break;
       case MetricGateStatus.lockedOut:
         dotColor = tierColors.medium;
-        final h = tracker.consecutiveInTolerance;
-        statusText = 'Locked out ($h/3)';
+        statusText = 'Locked out ($consecutiveInTolerance/3)';
         break;
       case MetricGateStatus.learning:
         dotColor = appColors.textTertiary;
@@ -190,6 +216,10 @@ class ForecastStatusCard extends ConsumerWidget {
       case MetricGateStatus.waitingForTimestamps:
         dotColor = tierColors.medium;
         statusText = 'No timestamps';
+        break;
+      case MetricGateStatus.noClearPattern:
+        dotColor = appColors.textTertiary;
+        statusText = 'No daily pattern';
         break;
     }
 
@@ -209,7 +239,7 @@ class ForecastStatusCard extends ConsumerWidget {
           ),
           const SizedBox(width: 6),
           Text(
-            '${tracker.metricName}: $statusText',
+            '$metricName: $statusText',
             style: Theme.of(context).textTheme.labelSmall
                 ?.copyWith(fontWeight: FontWeight.w500),
           ),
@@ -220,6 +250,8 @@ class ForecastStatusCard extends ConsumerWidget {
 
   Widget _buildPredictedPeaks({
     required BuildContext context,
+    required MetricGateStatus tempStatus,
+    required MetricGateStatus aqStatus,
     required DiurnalFitState fitState,
     required ColorScheme colorScheme,
     required TextTheme textTheme,
@@ -228,11 +260,18 @@ class ForecastStatusCard extends ConsumerWidget {
     final aqModel = fitState.airQualityResult.model;
 
     final String tempText;
-    if (tempModel == null) {
-      tempText = 'Temperature: accumulating data...';
-    } else if (!tempModel.hasClearDailyPattern ||
+    if (tempStatus == MetricGateStatus.noClearPattern ||
+        tempModel == null ||
+        !tempModel.hasClearDailyPattern ||
         tempModel.formattedPeakTime == null) {
-      tempText = 'Temperature: no clear daily pattern';
+      if (tempStatus == MetricGateStatus.noClearPattern ||
+          (tempModel != null && !tempModel.hasClearDailyPattern)) {
+        tempText = 'Temperature: no clear daily pattern';
+      } else if (tempStatus == MetricGateStatus.waitingForTimestamps) {
+        tempText = 'Temperature: waiting for timestamps';
+      } else {
+        tempText = 'Temperature: accumulating data...';
+      }
     } else {
       final peakVal = (tempModel.c + tempModel.amplitude).toStringAsFixed(1);
       tempText =
@@ -240,11 +279,18 @@ class ForecastStatusCard extends ConsumerWidget {
     }
 
     final String aqText;
-    if (aqModel == null) {
-      aqText = 'Air quality: accumulating data...';
-    } else if (!aqModel.hasClearDailyPattern ||
+    if (aqStatus == MetricGateStatus.noClearPattern ||
+        aqModel == null ||
+        !aqModel.hasClearDailyPattern ||
         aqModel.formattedPeakTime == null) {
-      aqText = 'Air quality: no clear daily pattern';
+      if (aqStatus == MetricGateStatus.noClearPattern ||
+          (aqModel != null && !aqModel.hasClearDailyPattern)) {
+        aqText = 'Air quality: no clear daily pattern';
+      } else if (aqStatus == MetricGateStatus.waitingForTimestamps) {
+        aqText = 'Air quality: waiting for timestamps';
+      } else {
+        aqText = 'Air quality: accumulating data...';
+      }
     } else {
       final peakVal = (aqModel.c + aqModel.amplitude).round();
       aqText =

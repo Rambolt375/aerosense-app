@@ -42,10 +42,14 @@ void main() {
     });
 
     // --- ISO 8601 strings ---
-    test('ISO 8601 UTC string → correct DateTime', () {
-      final dt = parseTimestamp('2024-05-01T13:00:00Z');
+    test('ISO 8601 UTC string → correct DateTime in local time (toLocal)', () {
+      const utcString = '2024-05-01T13:00:00Z';
+      final expectedLocal = DateTime.parse(utcString).toLocal();
+      final dt = parseTimestamp(utcString);
       expect(dt, isNotNull);
-      expect(dt!.year, 2024);
+      expect(dt!.isUtc, isFalse);
+      expect(dt, equals(expectedLocal));
+      expect(dt.year, 2024);
       expect(dt.month, 5);
       expect(dt.day, 1);
     });
