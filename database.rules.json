@@ -25,6 +25,10 @@
     "history": {
       ".read": "auth != null",
       ".write": "auth.uid === 'DEVICE_UID_HERE'"
+    },
+    "config": {
+      ".read": "auth != null",
+      ".write": "auth.uid === 'DEVICE_UID_HERE'"
     }
   }
 }

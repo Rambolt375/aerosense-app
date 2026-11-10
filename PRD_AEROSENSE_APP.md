@@ -127,20 +127,20 @@ Reference status strings from firmware (for display and prefix parsing):
 
 ### FR-4. Manual fan toggle
 - A switch bound to `/system/manualToggle` (read and write).
-- Behavior by tier:
-  - **Safe:** enabled. Helper text: toggling forces the fan ON.
-  - **Medium:** enabled. This is the primary "energy decision" moment, so give it prominence: "Room is stuffy. The fan stays off unless you turn it on."
-  - **Danger:** **disabled/locked.** Text: "Safety override active. The fan is forced ON and manual control is bypassed."
-- Optimistic UI is allowed but must reconcile to the value streamed back from RTDB. Show a brief "sending..." state; on write error show a snackbar and revert.
-- If the device is stale (FR-3) or app is offline, disable the toggle with an explanation.
+- Behavior by tier (confirmed ESP32 firmware alignment):
+  - **Safe:** **disabled.** Helper text: "The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy." (Firmware keeps fan OFF in Safe tier).
+  - **Medium:** **enabled.** This is the primary "energy decision" moment, so give it prominence: "Room is stuffy. The fan stays off unless you turn it on." When on: "Manual ventilation is on. The fan is running." Firmware automatically resets `manualToggle` back to false after a fixed time (1–2 min).
+  - **Danger:** **disabled/locked.** Text: "Safety override active. The fan is forced on and manual control is bypassed."
+- Optimistic UI is allowed but must reconcile to the value streamed back from RTDB. Show a brief "sending..." state; on write error show a snackbar and revert. State also follows stream when firmware auto-resets `manualToggle` to `false`.
+- If the device is offline (> 20 min staleness) or app is offline, disable the toggle with an explanation.
 
 ### FR-5. History visualization
-- Load `/history` (`limitToLast`) once, then keep updated by listening to `onChildAdded` for new records (or re-query every 5 min). No full re-download on each event.
-- Range selector: **1 h, 6 h, 24 h (default), 7 d**.
+- Load `/history` (`limitToLast`) once, then keep updated by listening to `onChildAdded` for new records (cadence is 1 record every 10 min). No full re-download on each event.
+- Range selector: **1 h (6 pts), 6 h (36 pts), 24 h (default, 144 pts), 7 d (1008 pts)**.
 - Charts (using `fl_chart`): **three separate line charts** (temperature, humidity, air quality) sharing the same time axis, each with horizontal **Green/Amber/Red threshold bands** (from `thresholds.dart`). Rationale: the three metrics have very different scales (°C vs % vs 0–4095), which makes a single-axis combined chart unreadable. A combined normalized overlay may be added later as P2.
 - X axis: time of day (local time). Tooltips on touch/hover show exact values and time.
-- Empty state ("No history yet. The device logs every 5 minutes.") and loading state.
-- Handle gaps (device offline) by breaking the line rather than interpolating across gaps larger than ~15 min.
+- Empty state ("No history yet. The device logs every 10 minutes.") and loading state.
+- Handle gaps (device offline) by breaking the line rather than interpolating across gaps larger than 2.5× the sample interval (~25 min).
 
 ### FR-6. Diurnal forecasting (client-side)
 
@@ -161,7 +161,7 @@ A = sqrt(a² + b²),   φ = atan2(b, a)
 
 Solve the 3×3 normal equations (Gaussian elimination with partial pivoting is fine) over the history window. Use `t` = seconds since local midnight (mod 86400) so the phase maps to a real hour of day. Fit **temperature** and **airQuality** (humidity optional, P2).
 
-**Minimum data requirement:** configurable `kMinForecastPoints`. Default = 3 days (864 records) for real use, with a "Demo threshold" (default 36 records ≈ 3 h) that is only active in Demo Mode or when the user toggles "Allow short-history forecast (demo)" in settings. Below the minimum, show "Learning your room's pattern: X% of data needed" instead of a forecast.
+**Minimum data requirement:** Historical span ≥ 48 hours and ≥ 20 distinct hourly bins (0..23) represented. Point counts are used only for progress display calculation (`Progress = min(span/48h, bins/20, points/288)`). Below the minimum, show "Learning your room's pattern: X% of data needed" instead of a forecast. Demo Mode uses the same rules (fake history spans 7 days).
 
 **Confidence gate (from proposal, Eq. 2):**
 

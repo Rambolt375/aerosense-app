@@ -69,6 +69,36 @@ class _TierBannerState extends State<TierBanner>
     super.dispose();
   }
 
+  /// Returns true if [msg] is a bare status keyword (e.g. "NORMAL", "CAUTION", "DANGER", "SAFE", "MEDIUM")
+  /// with optional trailing colon or whitespace.
+  static bool isBareKeyword(String msg) {
+    final trimmed = msg.trim();
+    return RegExp(
+      r'^(NORMAL|SAFE|CAUTION|MEDIUM|DANGER):?$',
+      caseSensitive: false,
+    ).hasMatch(trimmed);
+  }
+
+  /// App-authored friendly message displayed when firmware sends only a bare severity keyword.
+  static String friendlyText(Tier tier) {
+    switch (tier) {
+      case Tier.safe:
+        return 'All environmental parameters are within safe ranges.';
+      case Tier.medium:
+        return 'The room is getting stuffy. Manual ventilation is available.';
+      case Tier.danger:
+        return 'Hazardous thresholds breached! Auto-fan is activated.';
+    }
+  }
+
+  String _displayMessage() {
+    if (widget.statusMessage.isEmpty) return '';
+    if (isBareKeyword(widget.statusMessage)) {
+      return friendlyText(widget.tier);
+    }
+    return widget.statusMessage;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -77,6 +107,7 @@ class _TierBannerState extends State<TierBanner>
     final (icon, title) = _tierContent(widget.tier);
     final solidColor = tierColors.forTier(widget.tier).solid;
     final containerColor = tierColors.forTier(widget.tier).container;
+    final message = _displayMessage();
 
     return Container(
       width: double.infinity,
@@ -113,10 +144,10 @@ class _TierBannerState extends State<TierBanner>
               ),
             ],
           ),
-          if (widget.statusMessage.isNotEmpty) ...[
+          if (message.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
-              widget.statusMessage,
+              message,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
               ),

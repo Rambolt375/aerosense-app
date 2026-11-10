@@ -167,48 +167,38 @@ DiurnalFitResult fitRobustDiurnal({
     );
   }
 
-  // 2. Learning data requirements check
-  if (isDemo) {
-    // In demo mode: permit short-history logs (default 36 records)
-    if (n < AppConfig.demoForecastPoints) {
-      final pct = ((n / AppConfig.demoForecastPoints) * 100)
-          .clamp(0, 99)
-          .floor();
-      return DiurnalFitResult(
-        status: DiurnalFitStatus.learning,
-        learningPercentage: pct,
-      );
-    }
-  } else {
-    // In production mode: requires point count, 24 h span, AND 20 of 24 hourly bins
-    final oldest = validRecords.first.timestamp!;
-    final newest = validRecords.last.timestamp!;
-    final timeSpan = newest.difference(oldest);
+  // 2. Learning data requirements check (span >= 48 h and >= 20 hourly bins)
+  // Non-negotiable: point-count gate removed; point counts used for progress display only.
+  // Demo mode uses the exact same production rules (fake history spans 7 days).
+  final oldest = validRecords.first.timestamp!;
+  final newest = validRecords.last.timestamp!;
+  final timeSpan = newest.difference(oldest);
 
-    final hourlyBins = <int>{};
-    for (final r in validRecords) {
-      hourlyBins.add(r.timestamp!.hour);
-    }
+  final hourlyBins = <int>{};
+  for (final r in validRecords) {
+    hourlyBins.add(r.timestamp!.hour);
+  }
 
-    final pointProgress = n / AppConfig.minForecastPoints;
-    final spanProgress =
-        timeSpan.inMinutes / (AppConfig.minForecastSpanHours * 60);
-    final coverageProgress = hourlyBins.length / AppConfig.minHourlyBins;
+  final expectedPoints =
+      (AppConfig.minForecastSpanHours * 60) ~/
+      AppConfig.expectedLogInterval.inMinutes;
+  final pointProgress = n / expectedPoints;
+  final spanProgress =
+      timeSpan.inMinutes / (AppConfig.minForecastSpanHours * 60);
+  final coverageProgress = hourlyBins.length / AppConfig.minHourlyBins;
 
-    final minProgress = math.min(
-      pointProgress,
-      math.min(spanProgress, coverageProgress),
+  final minProgress = math.min(
+    pointProgress,
+    math.min(spanProgress, coverageProgress),
+  );
+
+  if (timeSpan < Duration(hours: AppConfig.minForecastSpanHours) ||
+      hourlyBins.length < AppConfig.minHourlyBins) {
+    final pct = (minProgress * 100).clamp(0, 99).floor();
+    return DiurnalFitResult(
+      status: DiurnalFitStatus.learning,
+      learningPercentage: pct,
     );
-
-    if (n < AppConfig.minForecastPoints ||
-        timeSpan < Duration(hours: AppConfig.minForecastSpanHours) ||
-        hourlyBins.length < AppConfig.minHourlyBins) {
-      final pct = (minProgress * 100).clamp(0, 99).floor();
-      return DiurnalFitResult(
-        status: DiurnalFitStatus.learning,
-        learningPercentage: pct,
-      );
-    }
   }
 
   // 3. Pass 1: Fit sinusoid across all valid data points

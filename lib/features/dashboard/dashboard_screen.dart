@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/dashboard/widgets/fan_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
@@ -11,8 +12,8 @@ import 'package:aerosense_app/shared/connection_chip.dart';
 
 /// Live dashboard screen with metric tiles, tier banner, and fan control.
 ///
-/// Subscribes to systemStateProvider and connectedProvider. Shows loading
-/// skeletons during initial load and an error card with Retry on stream failure.
+/// Subscribes to systemStateProvider, connectedProvider, and deviceStatusProvider.
+/// Shows loading skeletons during initial load and an error card with Retry on stream failure.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
@@ -20,6 +21,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final systemState = ref.watch(systemStateProvider);
     final connected = ref.watch(connectedProvider);
+    final deviceStatus = ref.watch(deviceStatusProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -37,7 +39,8 @@ class DashboardScreen extends ConsumerWidget {
       ),
       body: systemState.when(
         skipLoadingOnReload: true,
-        data: (state) => _DashboardContent(state: state),
+        data: (state) =>
+            _DashboardContent(state: state, deviceStatus: deviceStatus),
         loading: () => const _DashboardSkeleton(),
         error: (error, _) => _DashboardError(
           error: error,
@@ -49,29 +52,40 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardContent extends StatelessWidget {
-  const _DashboardContent({required this.state});
+  const _DashboardContent({required this.state, required this.deviceStatus});
 
   final SystemState state;
+  final DeviceStatus deviceStatus;
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 900;
     final padding = width < 600 ? 16.0 : 24.0;
+    final isDeviceOffline = deviceStatus.isOffline;
 
     Widget content = ListView(
       padding: EdgeInsets.all(padding),
       children: [
-        // Tier banner
-        TierBanner(tier: state.tier, statusMessage: state.statusMessage),
+        // Live tier banner or Device Offline notice
+        if (isDeviceOffline)
+          _buildOfflineBanner(context, theme)
+        else
+          TierBanner(tier: state.tier, statusMessage: state.statusMessage),
         const SizedBox(height: 24),
-        // Metric tiles
-        MetricGrid(
-          temperature: state.temperature,
-          humidity: state.humidity,
-          airQuality: state.airQuality,
+
+        // Metric tiles (dimmed when device is offline)
+        Opacity(
+          opacity: isDeviceOffline ? 0.45 : 1.0,
+          child: MetricGrid(
+            temperature: state.temperature,
+            humidity: state.humidity,
+            airQuality: state.airQuality,
+          ),
         ),
         const SizedBox(height: 24),
+
         // Fan card
         const FanCard(),
         if (kDebugMode) ...[
@@ -98,6 +112,49 @@ class _DashboardContent extends StatelessWidget {
     }
 
     return content;
+  }
+
+  Widget _buildOfflineBanner(BuildContext context, ThemeData theme) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border.all(color: theme.colorScheme.outline, width: 1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.cloud_off_outlined,
+            size: 24,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Device offline',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.colorScheme.onSurface,
+                    fontVariations: [const FontVariation('wght', 600)],
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  deviceStatus.message,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -6,37 +6,37 @@ void main() {
   group('FakeHistoryRepository - Deterministic 7-day generator', () {
     final fixedAnchor = DateTime.utc(2026, 11, 10, 14, 37, 22);
 
-    test('rounds anchor to nearest 5-minute boundary', () {
-      final rounded = FakeHistoryRepository.roundToFiveMinutes(fixedAnchor);
-      // 14:37:22 -> rounds down to 14:35:00
-      expect(rounded.minute, equals(35));
+    test('rounds anchor to nearest 10-minute boundary', () {
+      final rounded = FakeHistoryRepository.roundToTenMinutes(fixedAnchor);
+      // 14:37:22 -> rounds down to 14:30:00
+      expect(rounded.minute, equals(30));
       expect(rounded.second, equals(0));
       expect(rounded.millisecond, equals(0));
     });
 
-    test('generates exactly 2016 records with 5-minute spacing', () {
+    test('generates exactly 1008 records with 10-minute spacing', () {
       final history = FakeHistoryRepository.generateHistory(
         anchor: fixedAnchor,
-        count: 2016,
+        count: 1008,
       );
 
-      expect(history.length, equals(2016));
+      expect(history.length, equals(1008));
 
-      // Oldest record at index 0, newest record at index 2015
-      final roundedAnchor = FakeHistoryRepository.roundToFiveMinutes(
+      // Oldest record at index 0, newest record at index 1007
+      final roundedAnchor = FakeHistoryRepository.roundToTenMinutes(
         fixedAnchor,
       );
       expect(history.last.timestamp, equals(roundedAnchor));
 
-      // Verify exact 5-minute spacing (300 seconds) between every consecutive pair
+      // Verify exact 10-minute spacing (600 seconds) between every consecutive pair
       for (var i = 0; i < history.length - 1; i++) {
         final current = history[i].timestamp!;
         final next = history[i + 1].timestamp!;
         final delta = next.difference(current);
         expect(
           delta.inSeconds,
-          equals(300),
-          reason: 'Delta between record $i and ${i + 1} must be 300 s',
+          equals(600),
+          reason: 'Delta between record $i and ${i + 1} must be 600 s',
         );
       }
     });
@@ -114,7 +114,7 @@ void main() {
         expect(
           hasHeatAnomaly,
           isTrue,
-          reason: 'Heat anomaly must exceed 32 °C',
+          reason: 'Heat anomaly must exceed 36.0 °C',
         );
       },
     );
@@ -127,7 +127,7 @@ void main() {
       );
 
       for (final r in history) {
-        expect(r.temperature, inInclusiveRange(15.0, 42.0));
+        expect(r.temperature, inInclusiveRange(15.0, 45.0));
         expect(r.humidity, inInclusiveRange(10.0, 95.0));
         expect(
           r.airQuality,
@@ -139,11 +139,11 @@ void main() {
     test('fetchHistory respects limit parameter', () async {
       final repo = FakeHistoryRepository(anchor: fixedAnchor);
 
-      final records24h = await repo.fetchHistory(limit: 288);
-      expect(records24h.length, equals(288));
+      final records24h = await repo.fetchHistory(limit: 144);
+      expect(records24h.length, equals(144));
 
       final recordsAll = await repo.fetchHistory(limit: 3000);
-      expect(recordsAll.length, equals(2016));
+      expect(recordsAll.length, equals(1008));
     });
 
     test(

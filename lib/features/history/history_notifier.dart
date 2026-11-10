@@ -26,7 +26,7 @@ class HistoryState {
 
 /// AsyncNotifier managing historical telemetry records.
 ///
-/// Keeps history alive across tab navigation, fetches up to 7 days (2016 records)
+/// Keeps history alive across tab navigation, fetches up to 7 days (1008 records)
 /// upon initialization, and subscribes to live appends via `watchNewRecords()`.
 class HistoryNotifier extends AsyncNotifier<HistoryState> {
   @override
@@ -35,7 +35,7 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
     ref.keepAlive();
 
     final repo = ref.watch(historyRepositoryProvider);
-    final initialRecords = await repo.fetchHistory(limit: 2016);
+    final initialRecords = await repo.fetchHistory(limit: 1008);
 
     // Subscribe only after the initial fetch succeeds
     final sub = repo.watchNewRecords().listen(
@@ -44,7 +44,7 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
           final updated = mergeHistoryRecords(
             currentState.allRecords,
             newRecord,
-            maxRecords: 2016,
+            maxRecords: 1008,
           );
           state = AsyncData(currentState.copyWith(allRecords: updated));
         });
@@ -236,15 +236,15 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
     // Downsample if range is 7 d (target 400 points)
     final tempSpots = downsampleAndJoinSegments(
       tempSegments,
-      targetTotal: range == HistoryRange.d7 ? 400 : 2016,
+      targetTotal: range == HistoryRange.d7 ? 400 : 1008,
     );
     final humSpots = downsampleAndJoinSegments(
       humSegments,
-      targetTotal: range == HistoryRange.d7 ? 400 : 2016,
+      targetTotal: range == HistoryRange.d7 ? 400 : 1008,
     );
     final aqSpots = downsampleAndJoinSegments(
       aqSegments,
-      targetTotal: range == HistoryRange.d7 ? 400 : 2016,
+      targetTotal: range == HistoryRange.d7 ? 400 : 1008,
     );
 
     // Step 6: Y-Axis bounds calculation

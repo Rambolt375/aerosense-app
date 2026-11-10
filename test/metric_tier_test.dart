@@ -8,32 +8,29 @@ void main() {
     test('null → safe', () {
       expect(MetricTier.forTemperature(null), Tier.safe);
     });
-    test('27.9 → safe (below tempSafeMax)', () {
-      expect(MetricTier.forTemperature(27.9), Tier.safe);
+    test('33.4 → safe (below tempSafeMax)', () {
+      expect(MetricTier.forTemperature(33.4), Tier.safe);
     });
-    test('28.0 → medium (at tempSafeMax boundary)', () {
-      expect(MetricTier.forTemperature(28.0), Tier.medium);
+    test('33.5 → medium (at tempSafeMax boundary >=)', () {
+      expect(MetricTier.forTemperature(33.5), Tier.medium);
     });
-    test('30.0 → medium', () {
-      expect(MetricTier.forTemperature(30.0), Tier.medium);
+    test('35.0 → medium', () {
+      expect(MetricTier.forTemperature(35.0), Tier.medium);
     });
-    test('32.0 → medium (at tempDangerMin, not > yet)', () {
-      expect(MetricTier.forTemperature(32.0), Tier.medium);
+    test('35.9 → medium (below tempDangerMin 36.0)', () {
+      expect(MetricTier.forTemperature(35.9), Tier.medium);
     });
-    test('32.1 → danger (> tempDangerMin)', () {
-      expect(MetricTier.forTemperature(32.1), Tier.danger);
+    test('36.0 → danger (at tempDangerMin boundary >=)', () {
+      expect(MetricTier.forTemperature(36.0), Tier.danger);
     });
-    test('Thresholds.tempSafeMax (28.0) → medium', () {
+    test('36.1 → danger (> tempDangerMin)', () {
+      expect(MetricTier.forTemperature(36.1), Tier.danger);
+    });
+    test('Thresholds.tempSafeMax (33.5) → medium', () {
       expect(MetricTier.forTemperature(Thresholds.tempSafeMax), Tier.medium);
     });
-    test('Thresholds.tempDangerMin (32.0) → medium', () {
-      expect(MetricTier.forTemperature(Thresholds.tempDangerMin), Tier.medium);
-    });
-    test('Thresholds.tempDangerMin + 0.1 → danger', () {
-      expect(
-        MetricTier.forTemperature(Thresholds.tempDangerMin + 0.1),
-        Tier.danger,
-      );
+    test('Thresholds.tempDangerMin (36.0) → danger', () {
+      expect(MetricTier.forTemperature(Thresholds.tempDangerMin), Tier.danger);
     });
   });
 
@@ -44,14 +41,17 @@ void main() {
     test('59.9 → safe', () {
       expect(MetricTier.forHumidity(59.9), Tier.safe);
     });
-    test('60.0 → medium (at humiditySafeMax)', () {
+    test('60.0 → medium (at humiditySafeMax boundary >=)', () {
       expect(MetricTier.forHumidity(60.0), Tier.medium);
     });
     test('70.0 → medium', () {
       expect(MetricTier.forHumidity(70.0), Tier.medium);
     });
-    test('75.0 → medium (at humidityDangerMin)', () {
-      expect(MetricTier.forHumidity(75.0), Tier.medium);
+    test('74.9 → medium', () {
+      expect(MetricTier.forHumidity(74.9), Tier.medium);
+    });
+    test('75.0 → danger (at humidityDangerMin boundary >=)', () {
+      expect(MetricTier.forHumidity(75.0), Tier.danger);
     });
     test('75.1 → danger', () {
       expect(MetricTier.forHumidity(75.1), Tier.danger);
@@ -59,14 +59,8 @@ void main() {
     test('Thresholds.humiditySafeMax (60.0) → medium', () {
       expect(MetricTier.forHumidity(Thresholds.humiditySafeMax), Tier.medium);
     });
-    test('Thresholds.humidityDangerMin (75.0) → medium', () {
-      expect(MetricTier.forHumidity(Thresholds.humidityDangerMin), Tier.medium);
-    });
-    test('Thresholds.humidityDangerMin + 0.1 → danger', () {
-      expect(
-        MetricTier.forHumidity(Thresholds.humidityDangerMin + 0.1),
-        Tier.danger,
-      );
+    test('Thresholds.humidityDangerMin (75.0) → danger', () {
+      expect(MetricTier.forHumidity(Thresholds.humidityDangerMin), Tier.danger);
     });
   });
 
@@ -74,39 +68,36 @@ void main() {
     test('null → safe', () {
       expect(MetricTier.forAirQuality(null), Tier.safe);
     });
-    test('999.9 → safe', () {
-      expect(MetricTier.forAirQuality(999.9), Tier.safe);
+    test('1399.9 → safe', () {
+      expect(MetricTier.forAirQuality(1399.9), Tier.safe);
     });
-    test('1000.0 → medium (at airQualitySafeMax)', () {
-      expect(MetricTier.forAirQuality(1000.0), Tier.medium);
+    test('1400.0 → medium (at airQualitySafeMax boundary >=)', () {
+      expect(MetricTier.forAirQuality(1400.0), Tier.medium);
     });
-    test('1500.0 → medium', () {
-      expect(MetricTier.forAirQuality(1500.0), Tier.medium);
+    test('1800.0 → medium', () {
+      expect(MetricTier.forAirQuality(1800.0), Tier.medium);
     });
-    test('2000.0 → medium (at airQualityDangerMin)', () {
-      expect(MetricTier.forAirQuality(2000.0), Tier.medium);
+    test('1999.9 → medium', () {
+      expect(MetricTier.forAirQuality(1999.9), Tier.medium);
+    });
+    test('2000.0 → danger (at airQualityDangerMin boundary >=)', () {
+      expect(MetricTier.forAirQuality(2000.0), Tier.danger);
     });
     test('2000.1 → danger', () {
       expect(MetricTier.forAirQuality(2000.1), Tier.danger);
     });
-    test('1128 (DATA_SAMPLE value) → medium', () {
-      expect(MetricTier.forAirQuality(1128.0), Tier.medium);
+    test('1128 (DATA_SAMPLE value) → safe', () {
+      expect(MetricTier.forAirQuality(1128.0), Tier.safe);
     });
-    test('Thresholds.airQualitySafeMax (1000.0) → medium', () {
+    test('Thresholds.airQualitySafeMax (1400.0) → medium', () {
       expect(
         MetricTier.forAirQuality(Thresholds.airQualitySafeMax),
         Tier.medium,
       );
     });
-    test('Thresholds.airQualityDangerMin (2000.0) → medium', () {
+    test('Thresholds.airQualityDangerMin (2000.0) → danger', () {
       expect(
         MetricTier.forAirQuality(Thresholds.airQualityDangerMin),
-        Tier.medium,
-      );
-    });
-    test('Thresholds.airQualityDangerMin + 0.1 → danger', () {
-      expect(
-        MetricTier.forAirQuality(Thresholds.airQualityDangerMin + 0.1),
         Tier.danger,
       );
     });

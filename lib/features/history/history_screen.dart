@@ -82,7 +82,7 @@ class HistoryScreen extends ConsumerWidget {
           EmptyState(
             icon: Icons.history_toggle_off_outlined,
             title: 'No history yet',
-            subtitle: 'The device logs every 5 minutes.',
+            subtitle: 'The device logs every 10 minutes.',
           ),
         ],
       );

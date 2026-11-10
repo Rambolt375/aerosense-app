@@ -96,7 +96,7 @@ void main() {
           ),
       ];
 
-      // In production mode (isDemo = false): requires 24 h span and 20 hourly bins
+      // Short records (6 hours, span < 48 h) -> Learning in both prod and demo
       final resultProd = fitRobustDiurnal(
         records: shortRecords,
         extractor: (r) => r.temperature,
@@ -106,26 +106,26 @@ void main() {
       expect(resultProd.status, equals(DiurnalFitStatus.learning));
       expect(resultProd.learningPercentage, inInclusiveRange(0, 99));
 
-      // But in demo mode (isDemo = true), short-history threshold (36 points) is permitted
+      // Demo mode uses the exact same production rules
       final resultDemo = fitRobustDiurnal(
         records: shortRecords,
         extractor: (r) => r.temperature,
         noiseFloor: AppConfig.minTempTolerance,
         isDemo: true,
       );
-      expect(resultDemo.status, isNot(DiurnalFitStatus.learning));
+      expect(resultDemo.status, equals(DiurnalFitStatus.learning));
     });
 
     test('pure noise yields noClearPattern (R^2 < minR2Pattern)', () {
       final rand = math.Random(42);
       final start = DateTime(2026, 11, 1, 0, 0);
 
-      // Pure uniform white noise across 576 points (2 full days)
+      // Pure uniform white noise across 300 points (50 hours at 10-min cadence)
       final records = <HistoryRecord>[
-        for (var i = 0; i < AppConfig.minForecastPoints; i++)
+        for (var i = 0; i < 300; i++)
           HistoryRecord(
             pushKey: 'key-$i',
-            timestamp: start.add(Duration(minutes: 5 * i)),
+            timestamp: start.add(Duration(minutes: 10 * i)),
             temperature: 25.0 + (rand.nextDouble() - 0.5) * 4.0,
           ),
       ];
@@ -156,9 +156,9 @@ void main() {
         final start = DateTime(2026, 11, 1, 0, 0);
 
         final records = <HistoryRecord>[
-          for (var i = 0; i < AppConfig.minForecastPoints; i++) ...[
+          for (var i = 0; i < 300; i++) ...[
             () {
-              final dt = start.add(Duration(minutes: 5 * i));
+              final dt = start.add(Duration(minutes: 10 * i));
               final sec = dt.hour * 3600.0 + dt.minute * 60.0 + dt.second;
               final noise = (rand.nextDouble() - 0.5) * 0.2;
               final y = trueA * math.sin(omega * sec + truePhi) + trueC + noise;

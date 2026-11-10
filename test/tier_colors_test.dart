@@ -45,14 +45,22 @@ void main() {
       expect(AppColors.dark.textTertiary, const Color(0xFF6F8296));
     });
 
-    test('Threshold values match PRD §5.3 non-negotiables', () {
-      expect(Thresholds.tempSafeMax, 28.0);
-      expect(Thresholds.tempDangerMin, 32.0);
+    test('Threshold values match confirmed firmware values and presets', () {
+      // Active firmware preset (single source of truth)
+      expect(Thresholds.tempSafeMax, 33.5);
+      expect(Thresholds.tempDangerMin, 36.0);
       expect(Thresholds.humiditySafeMax, 60.0);
       expect(Thresholds.humidityDangerMin, 75.0);
-      expect(Thresholds.airQualitySafeMax, 1000.0);
+      expect(Thresholds.airQualitySafeMax, 1400.0);
       expect(Thresholds.airQualityDangerMin, 2000.0);
+      expect(Thresholds.airQualityRecovery, 1250.0);
       expect(Thresholds.airQualityAdcMax, 4095.0);
+
+      // Demo preset slot
+      expect(ThresholdPreset.demo.tempCautionMin, 28.0);
+      expect(ThresholdPreset.demo.tempDangerMin, 32.0);
+      expect(ThresholdPreset.demo.airQualityCautionMin, 1000.0);
+      expect(ThresholdPreset.demo.airQualityDangerMin, 2000.0);
     });
   });
 }

@@ -3,15 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/dashboard/manual_toggle_notifier.dart';
 
 /// Fan status card with manual toggle switch.
 ///
-/// Toggle behavior (PRD FR-4):
-/// - Safe: enabled, "Manual override is on. The fan is running." when on
-/// - Medium: enabled, prominent decision moment
-/// - Danger: disabled/locked, reflects fanOn state, no writes
-/// - Offline: disabled with explanation
+/// Toggle behavior (PRD FR-4 & Phase 5b firmware alignment):
+/// - Safe: disabled. "The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy."
+/// - Medium: enabled. Prominent decision moment.
+/// - Danger: disabled/locked, reflects fanOn state, no writes.
+/// - Offline (app or device): disabled with explanation.
 class FanCard extends ConsumerWidget {
   const FanCard({super.key});
 
@@ -19,12 +20,14 @@ class FanCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final systemState = ref.watch(systemStateProvider);
     final connected = ref.watch(connectedProvider);
+    final deviceStatus = ref.watch(deviceStatusProvider);
     final toggleState = ref.watch(manualToggleProvider);
 
     return systemState.when(
       data: (state) => _FanCardContent(
         state: state,
-        connected: connected.asData?.value ?? false,
+        appConnected: connected.asData?.value ?? false,
+        deviceOffline: deviceStatus.isOffline,
         toggleState: toggleState,
         onToggleChanged: (value) async {
           try {
@@ -52,13 +55,15 @@ class FanCard extends ConsumerWidget {
 class _FanCardContent extends StatelessWidget {
   const _FanCardContent({
     required this.state,
-    required this.connected,
+    required this.appConnected,
+    required this.deviceOffline,
     required this.toggleState,
     required this.onToggleChanged,
   });
 
   final SystemState state;
-  final bool connected;
+  final bool appConnected;
+  final bool deviceOffline;
   final ManualToggleState toggleState;
   final Future<void> Function(bool) onToggleChanged;
 
@@ -67,9 +72,17 @@ class _FanCardContent extends StatelessWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final isOffline = !connected;
+    final isAppOffline = !appConnected;
     final isDanger = state.tier == Tier.danger;
-    final isEnabled = !isOffline && !isDanger;
+    final isSafe = state.tier == Tier.safe;
+
+    // Toggle is strictly enabled ONLY in Medium tier, and only when online
+    final isEnabled =
+        !isAppOffline && !deviceOffline && state.tier == Tier.medium;
+
+    final switchValue = isDanger
+        ? state.fanOn
+        : (isSafe ? false : toggleState.value);
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -84,8 +97,6 @@ class _FanCardContent extends StatelessWidget {
           // Header row: fan icon + status
           Row(
             children: [
-              // Flutter's Icons lacks Material Symbols' mode_fan;
-              // toys_outlined is the standard 4-blade fan pinwheel in MaterialIcons.
               Icon(
                 state.fanOn ? Icons.toys_outlined : Icons.mode_fan_off_outlined,
                 size: 24,
@@ -123,7 +134,7 @@ class _FanCardContent extends StatelessWidget {
               ),
               const Spacer(),
               Switch(
-                value: isDanger ? state.fanOn : toggleState.value,
+                value: switchValue,
                 onChanged: isEnabled ? (v) => onToggleChanged(v) : null,
               ),
             ],
@@ -131,7 +142,12 @@ class _FanCardContent extends StatelessWidget {
           const SizedBox(height: 8),
           // Helper text
           Text(
-            _helperText(state.tier, toggleState.value, isOffline),
+            _helperText(
+              state.tier,
+              toggleState.value,
+              isAppOffline,
+              deviceOffline,
+            ),
             style: theme.textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -141,17 +157,25 @@ class _FanCardContent extends StatelessWidget {
     );
   }
 
-  String _helperText(Tier tier, bool manualToggle, bool isOffline) {
-    if (isOffline) {
+  String _helperText(
+    Tier tier,
+    bool manualToggle,
+    bool isAppOffline,
+    bool isDeviceOffline,
+  ) {
+    if (isAppOffline) {
       return 'App is offline. Fan control unavailable.';
+    }
+    if (isDeviceOffline) {
+      return 'Device offline. Fan control unavailable.';
     }
     switch (tier) {
       case Tier.safe:
-        return manualToggle
-            ? 'Manual override is on. The fan is running.'
-            : 'Manual toggle forces the fan on.';
+        return 'The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy.';
       case Tier.medium:
-        return 'Room is stuffy. The fan stays off unless you turn it on.';
+        return manualToggle
+            ? 'Manual ventilation is on. The fan is running.'
+            : 'Room is stuffy. The fan stays off unless you turn it on.';
       case Tier.danger:
         return 'Safety override active. The fan is forced on and manual control is bypassed.';
     }

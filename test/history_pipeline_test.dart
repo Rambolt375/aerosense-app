@@ -8,10 +8,10 @@ import 'package:aerosense_app/features/history/history_pipeline.dart';
 void main() {
   group('HistoryRange enum (Requirement 1)', () {
     test('defines exact hardware-matched record counts', () {
-      expect(HistoryRange.h1.recordCount, 12);
-      expect(HistoryRange.h6.recordCount, 72);
-      expect(HistoryRange.h24.recordCount, 288);
-      expect(HistoryRange.d7.recordCount, 2016);
+      expect(HistoryRange.h1.recordCount, 6);
+      expect(HistoryRange.h6.recordCount, 36);
+      expect(HistoryRange.h24.recordCount, 144);
+      expect(HistoryRange.d7.recordCount, 1008);
     });
 
     test('defines matching durations', () {
@@ -32,7 +32,7 @@ void main() {
     });
 
     test(
-      'all-null timestamps triggers synthetic 5-minute spacing fallback',
+      'all-null timestamps triggers synthetic 10-minute spacing fallback',
       () {
         final records = [
           const HistoryRecord(pushKey: '-Nx003', temperature: 25.0),
@@ -49,15 +49,15 @@ void main() {
         expect(res.records[1].pushKey, '-Nx002');
         expect(res.records[2].pushKey, '-Nx003');
 
-        // 5-minute spacing ending at fixedAnchor
+        // 10-minute spacing ending at fixedAnchor
         expect(res.records[2].timestamp, fixedAnchor);
         expect(
           res.records[1].timestamp,
-          fixedAnchor.subtract(const Duration(minutes: 5)),
+          fixedAnchor.subtract(const Duration(minutes: 10)),
         );
         expect(
           res.records[0].timestamp,
-          fixedAnchor.subtract(const Duration(minutes: 10)),
+          fixedAnchor.subtract(const Duration(minutes: 20)),
         );
       },
     );
@@ -113,10 +113,10 @@ void main() {
     final anchor = DateTime.utc(2026, 11, 10, 12, 0, 0);
 
     test('filters 7-day dataset down to exact expected record counts', () {
-      // 2016 records, 5-minute spacing ending at anchor
+      // 1008 records, 10-minute spacing ending at anchor
       final all = FakeHistoryRepository.generateHistory(
         anchor: anchor,
-        count: 2016,
+        count: 1008,
       );
 
       final h1Records = filterByRange(
@@ -125,29 +125,29 @@ void main() {
         clock: () => anchor,
       );
       // 1 h contains records from anchor - 1h to anchor.
-      // At 5 min intervals: 60 / 5 = 12 intervals -> 13 points if inclusive, or 12 points
-      expect(h1Records.length, anyOf(12, 13));
+      // At 10 min intervals: 60 / 10 = 6 intervals -> 6 or 7 points if inclusive
+      expect(h1Records.length, anyOf(6, 7));
 
       final h6Records = filterByRange(
         all,
         HistoryRange.h6,
         clock: () => anchor,
       );
-      expect(h6Records.length, anyOf(72, 73));
+      expect(h6Records.length, anyOf(36, 37));
 
       final h24Records = filterByRange(
         all,
         HistoryRange.h24,
         clock: () => anchor,
       );
-      expect(h24Records.length, anyOf(288, 289));
+      expect(h24Records.length, anyOf(144, 145));
 
       final d7Records = filterByRange(
         all,
         HistoryRange.d7,
         clock: () => anchor,
       );
-      expect(d7Records.length, 2016);
+      expect(d7Records.length, 1008);
     });
 
     test('returns empty list for empty input', () {
@@ -159,12 +159,12 @@ void main() {
   group('splitIntoSegments (Requirement 2)', () {
     final base = DateTime.utc(2026, 11, 10, 10, 0, 0);
 
-    test('contiguous 5-minute records result in a single segment', () {
+    test('contiguous 10-minute records result in a single segment', () {
       final records = List.generate(
         10,
         (i) => HistoryRecord(
           pushKey: 'k-$i',
-          timestamp: base.add(Duration(minutes: 5 * i)),
+          timestamp: base.add(Duration(minutes: 10 * i)),
           temperature: 24.0,
         ),
       );
@@ -174,46 +174,52 @@ void main() {
       expect(segments.first.length, 10);
     });
 
-    test('gap exceeding 15 minutes splits into multiple segments', () {
+    test(
+      'gap exceeding 25 minutes (2.5x threshold) splits into multiple segments',
+      () {
+        final records = [
+          HistoryRecord(pushKey: 'k-1', timestamp: base, temperature: 24.0),
+          HistoryRecord(
+            pushKey: 'k-2',
+            timestamp: base.add(const Duration(minutes: 10)),
+            temperature: 24.2,
+          ),
+          // 40-minute offline gap here (> 25 min)
+          HistoryRecord(
+            pushKey: 'k-3',
+            timestamp: base.add(const Duration(minutes: 50)),
+            temperature: 25.0,
+          ),
+          HistoryRecord(
+            pushKey: 'k-4',
+            timestamp: base.add(const Duration(minutes: 60)),
+            temperature: 25.1,
+          ),
+        ];
+
+        final segments = splitIntoSegments(records);
+        expect(segments.length, 2);
+        expect(segments[0].length, 2);
+        expect(segments[1].length, 2);
+        expect(segments[0].last.pushKey, 'k-2');
+        expect(segments[1].first.pushKey, 'k-3');
+      },
+    );
+
+    test('gap exactly 25 minutes does not split', () {
       final records = [
         HistoryRecord(pushKey: 'k-1', timestamp: base, temperature: 24.0),
         HistoryRecord(
           pushKey: 'k-2',
-          timestamp: base.add(const Duration(minutes: 5)),
-          temperature: 24.2,
-        ),
-        // 30-minute offline gap here (> 15 min)
-        HistoryRecord(
-          pushKey: 'k-3',
-          timestamp: base.add(const Duration(minutes: 35)),
-          temperature: 25.0,
-        ),
-        HistoryRecord(
-          pushKey: 'k-4',
-          timestamp: base.add(const Duration(minutes: 40)),
-          temperature: 25.1,
-        ),
-      ];
-
-      final segments = splitIntoSegments(records);
-      expect(segments.length, 2);
-      expect(segments[0].length, 2);
-      expect(segments[1].length, 2);
-      expect(segments[0].last.pushKey, 'k-2');
-      expect(segments[1].first.pushKey, 'k-3');
-    });
-
-    test('gap exactly 15 minutes does not split', () {
-      final records = [
-        HistoryRecord(pushKey: 'k-1', timestamp: base, temperature: 24.0),
-        HistoryRecord(
-          pushKey: 'k-2',
-          timestamp: base.add(const Duration(minutes: 15)),
+          timestamp: base.add(const Duration(minutes: 25)),
           temperature: 24.5,
         ),
       ];
 
-      final segments = splitIntoSegments(records);
+      final segments = splitIntoSegments(
+        records,
+        gapThreshold: const Duration(minutes: 25),
+      );
       expect(segments.length, 1);
       expect(segments.first.length, 2);
     });
@@ -363,19 +369,19 @@ void main() {
 
         final bounds = calculateYAxisBounds(
           spots: spots,
-          safeMax: Thresholds.tempSafeMax, // 28.0
-          dangerMin: Thresholds.tempDangerMin, // 32.0
+          safeMax: Thresholds.tempSafeMax, // 33.5
+          dangerMin: Thresholds.tempDangerMin, // 36.0
           padding: 2.0,
           interval: 5.0,
         );
 
-        // minY = min(24, 28) - 2 = 22 -> floored to interval 5 = 20.0
+        // minY = min(24, 33.5) - 2 = 22 -> floored to interval 5 = 20.0
         expect(bounds.minY, lessThanOrEqualTo(Thresholds.tempSafeMax));
-        // maxY = max(26, 32) + 2 = 34 -> ceiled to interval 5 = 35.0
+        // maxY = max(26, 36.0) + 2 = 38 -> ceiled to interval 5 = 40.0
         expect(bounds.maxY, greaterThanOrEqualTo(Thresholds.tempDangerMin));
 
         expect(bounds.minY, 20.0);
-        expect(bounds.maxY, 35.0);
+        expect(bounds.maxY, 40.0);
       },
     );
 

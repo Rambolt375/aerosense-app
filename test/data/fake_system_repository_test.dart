@@ -51,11 +51,8 @@ void main() {
 
         final updatedRaw = rawEvents.last as Map<String, dynamic>;
         expect(updatedRaw['manualToggle'], isTrue);
-        expect(updatedRaw['fanStatus'], equals('ON'));
-        expect(
-          updatedRaw['statusMessage'],
-          equals('SAFE: Fan manually overridden ON.'),
-        );
+        expect(updatedRaw['fanStatus'], equals('OFF'));
+        expect(updatedRaw['statusMessage'], equals('System Safe'));
 
         await sub.cancel();
       },
@@ -78,13 +75,10 @@ void main() {
       },
     );
 
-    test('Safe tier honors manualToggle ON and OFF', () async {
+    test('Safe tier keeps fan OFF even if manualToggle is written', () async {
       await repo.setManualToggle(true);
-      expect(repo.currentFanOn, isTrue);
-      expect(
-        repo.currentStatusMessage,
-        equals('SAFE: Fan manually overridden ON.'),
-      );
+      expect(repo.currentFanOn, isFalse);
+      expect(repo.currentStatusMessage, equals('System Safe'));
 
       await repo.setManualToggle(false);
       expect(repo.currentFanOn, isFalse);
@@ -92,9 +86,9 @@ void main() {
     });
 
     test('Medium tier fan is OFF by default; honors manualToggle', () async {
-      // Create repo starting in Medium tier via temperature (29 °C)
+      // Create repo starting in Medium tier via temperature (34 °C >= 33.5)
       final medRepo = FakeSystemRepository(
-        initialTemperature: 29.0,
+        initialTemperature: 34.0,
         initialHumidity: 45.0,
         initialAirQuality: 500.0,
       );
@@ -124,6 +118,34 @@ void main() {
 
       medRepo.dispose();
     });
+
+    test(
+      'Medium tier: manual toggle auto-resets to false after autoResetDuration',
+      () async {
+        final medRepo = FakeSystemRepository(
+          initialTemperature: 34.0,
+          initialHumidity: 45.0,
+          initialAirQuality: 500.0,
+          autoResetDuration: const Duration(milliseconds: 50),
+        );
+
+        await medRepo.setManualToggle(true);
+        expect(medRepo.rawManualToggle, isTrue);
+        expect(medRepo.currentFanOn, isTrue);
+
+        // Wait for auto-reset duration
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+
+        expect(medRepo.rawManualToggle, isFalse);
+        expect(medRepo.currentFanOn, isFalse);
+        expect(
+          medRepo.currentStatusMessage,
+          equals('MEDIUM: Environment is stuffy. Manual toggle available.'),
+        );
+
+        medRepo.dispose();
+      },
+    );
 
     test(
       'Danger tier forces fan ON and ignores manualToggle turning it off',
@@ -199,7 +221,7 @@ void main() {
         tickInterval: const Duration(milliseconds: 10),
         clock: () => DateTime(2026, 11, 10, 8, 30),
         initialTemperature:
-            31.0, // Start close to Danger threshold (32) for fast test
+            35.0, // Start close to Danger threshold (36.0) for fast test
       );
 
       final states = <SystemState>[];

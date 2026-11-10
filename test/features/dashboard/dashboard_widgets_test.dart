@@ -106,9 +106,9 @@ void main() {
             body: MetricTile(
               icon: Icons.device_thermostat_outlined,
               label: 'Temperature',
-              value: 29.0,
+              value: 34.0,
               unit: '°C',
-              metricTier: MetricTier.forTemperature(29.0), // Medium
+              metricTier: MetricTier.forTemperature(34.0), // Medium (>= 33.5)
             ),
           ),
         ),
@@ -202,7 +202,9 @@ void main() {
       expect(finder, findsOneWidget);
     });
 
-    testWidgets('statusMessage displayed verbatim', (tester) async {
+    testWidgets('statusMessage displayed verbatim when descriptive', (
+      tester,
+    ) async {
       const customMessage = 'Custom firmware message with special chars: !@#';
       await tester.pumpWidget(
         const MaterialApp(
@@ -213,6 +215,60 @@ void main() {
       );
 
       expect(find.text(customMessage), findsOneWidget);
+    });
+
+    testWidgets('bare keyword "NORMAL" displays app friendly text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TierBanner(tier: Tier.safe, statusMessage: 'NORMAL'),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('All environmental parameters are within safe ranges.'),
+        findsOneWidget,
+      );
+      expect(find.text('NORMAL'), findsNothing);
+    });
+
+    testWidgets('bare keyword "CAUTION" displays app friendly text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TierBanner(tier: Tier.medium, statusMessage: 'CAUTION'),
+          ),
+        ),
+      );
+
+      expect(
+        find.text(
+          'The room is getting stuffy. Manual ventilation is available.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('bare keyword "DANGER" displays app friendly text', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TierBanner(tier: Tier.danger, statusMessage: 'DANGER'),
+          ),
+        ),
+      );
+
+      expect(
+        find.text('Hazardous thresholds breached! Auto-fan is activated.'),
+        findsOneWidget,
+      );
     });
   });
 }

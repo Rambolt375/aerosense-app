@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/forecast/residual_gate.dart';
 import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/sinusoidal_fit.dart';
@@ -62,12 +63,14 @@ class ForecastGateNotifier extends Notifier<ForecastGate> {
   ForecastGate build() {
     final fitState = ref.watch(diurnalFitProvider);
     final systemRepo = ref.watch(systemRepositoryProvider);
+    final deviceStatus = ref.watch(deviceStatusProvider);
 
     final previousGate = stateOrNull;
     final ForecastGate gate;
 
     if (previousGate != null) {
       gate = previousGate.clone();
+      gate.isDeviceOffline = deviceStatus.isOffline;
       gate.updateModels(
         tempModel: fitState.temperatureResult.model,
         aqModel: fitState.airQualityResult.model,
@@ -80,6 +83,7 @@ class ForecastGateNotifier extends Notifier<ForecastGate> {
         aqModel: fitState.airQualityResult.model,
         tempFitStatus: fitState.temperatureResult.status,
         aqFitStatus: fitState.airQualityResult.status,
+        isDeviceOffline: deviceStatus.isOffline,
       );
     }
 

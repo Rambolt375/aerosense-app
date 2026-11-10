@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
+import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 
 // ---------------------------------------------------------------------------
@@ -11,16 +12,16 @@ import 'package:aerosense_app/data/models/history_record.dart';
 
 /// Supported time ranges for historical telemetry visualization.
 ///
-/// Hardware sampling rate is 1 record per 5 minutes.
-/// - 1 h = 12 records
-/// - 6 h = 72 records
-/// - 24 h = 288 records (default)
-/// - 7 d = 2016 records
+/// Hardware sampling rate is 1 record per 10 minutes.
+/// - 1 h = 6 records
+/// - 6 h = 36 records
+/// - 24 h = 144 records (default)
+/// - 7 d = 1008 records
 enum HistoryRange {
-  h1(label: '1 h', duration: Duration(hours: 1), recordCount: 12),
-  h6(label: '6 h', duration: Duration(hours: 6), recordCount: 72),
-  h24(label: '24 h', duration: Duration(hours: 24), recordCount: 288),
-  d7(label: '7 d', duration: Duration(days: 7), recordCount: 2016);
+  h1(label: '1 h', duration: Duration(hours: 1), recordCount: 6),
+  h6(label: '6 h', duration: Duration(hours: 6), recordCount: 36),
+  h24(label: '24 h', duration: Duration(hours: 24), recordCount: 144),
+  d7(label: '7 d', duration: Duration(days: 7), recordCount: 1008);
 
   const HistoryRange({
     required this.label,
@@ -53,7 +54,7 @@ class ResolvedHistory {
 ///
 /// Rules (PRD §5.2 and safety contract):
 /// 1. If all records have null timestamps, falls back to pushKey ordering
-///    and synthetic 5-minute spacing backwards from [clock]. Flagged as synthetic.
+///    and synthetic 10-minute spacing backwards from [clock]. Flagged as synthetic.
 /// 2. If partially null, drops the records with null timestamps and logs a warning.
 ///    Never mixes real and synthetic timestamps.
 /// 3. If all records have valid timestamps, sorts them chronologically.
@@ -77,9 +78,9 @@ ResolvedHistory resolveTimestamps(
 
     final syntheticRecords = <HistoryRecord>[];
     for (var i = 0; i < total; i++) {
-      // 5-minute spacing ending at now
+      // 10-minute spacing ending at now
       final syntheticTime = now.subtract(
-        Duration(minutes: 5 * (total - 1 - i)),
+        Duration(minutes: 10 * (total - 1 - i)),
       );
       syntheticRecords.add(
         sortedByPushKey[i].copyWith(timestamp: syntheticTime),
@@ -88,7 +89,7 @@ ResolvedHistory resolveTimestamps(
 
     debugPrint(
       '[HistoryPipeline] // TODO(confirm): All history timestamps null; '
-      'using synthetic 5-minute spacing sorted by pushKey.',
+      'using synthetic 10-minute spacing sorted by pushKey.',
     );
     return ResolvedHistory(records: syntheticRecords, isSynthetic: true);
   }
@@ -148,11 +149,11 @@ List<HistoryRecord> filterByRange(
 /// Rules:
 /// - Dedupes by [pushKey] (e.g. when `onChildAdded(limitToLast(1))` re-emits the latest record).
 /// - Keeps chronological order by timestamp (secondary sort by pushKey).
-/// - Caps result at [maxRecords] (default 2016 = 7 days), dropping oldest.
+/// - Caps result at [maxRecords] (default 1008 = 7 days at 10-minute cadence), dropping oldest.
 List<HistoryRecord> mergeHistoryRecords(
   List<HistoryRecord> existing,
   HistoryRecord newRecord, {
-  int maxRecords = 2016,
+  int maxRecords = 1008,
 }) {
   final copy = List<HistoryRecord>.from(existing);
   final existingIndex = copy.indexWhere((r) => r.pushKey == newRecord.pushKey);
@@ -184,16 +185,47 @@ List<HistoryRecord> mergeHistoryRecords(
 // Gap detection & Segment splitting
 // ---------------------------------------------------------------------------
 
+/// Derives the median time delta between consecutive sorted records with valid timestamps.
+///
+/// Falls back to [AppConfig.expectedLogInterval] (10 minutes) if insufficient records.
+Duration deriveMedianInterval(List<HistoryRecord> records) {
+  if (records.length < 2) return AppConfig.expectedLogInterval;
+
+  final deltas = <int>[];
+  for (var i = 1; i < records.length; i++) {
+    final prev = records[i - 1].timestamp;
+    final curr = records[i].timestamp;
+    if (prev != null && curr != null) {
+      final diff = curr.difference(prev).inMilliseconds;
+      if (diff > 0) deltas.add(diff);
+    }
+  }
+
+  if (deltas.isEmpty) return AppConfig.expectedLogInterval;
+  deltas.sort();
+  final medianMs = deltas[deltas.length ~/ 2];
+  return Duration(milliseconds: medianMs);
+}
+
 /// Splits sorted [records] into contiguous segments.
 ///
 /// Whenever the gap between consecutive records exceeds [gapThreshold]
-/// (default 15 minutes, representing missing packets/device offline),
+/// (by default derived from 2.5x the median sample interval, or 25 minutes for 10-minute intervals),
 /// a new segment is started.
 List<List<HistoryRecord>> splitIntoSegments(
   List<HistoryRecord> records, {
-  Duration gapThreshold = const Duration(minutes: 15),
+  Duration? gapThreshold,
 }) {
   if (records.isEmpty) return const [];
+
+  final effectiveGap =
+      gapThreshold ??
+      Duration(
+        milliseconds:
+            (deriveMedianInterval(records).inMilliseconds *
+                    AppConfig.gapThresholdMultiplier)
+                .round(),
+      );
 
   final segments = <List<HistoryRecord>>[];
   var currentSegment = <HistoryRecord>[records.first];
@@ -204,7 +236,7 @@ List<List<HistoryRecord>> splitIntoSegments(
 
     if (prev.timestamp != null && curr.timestamp != null) {
       final diff = curr.timestamp!.difference(prev.timestamp!);
-      if (diff > gapThreshold) {
+      if (diff > effectiveGap) {
         segments.add(currentSegment);
         currentSegment = [curr];
         continue;

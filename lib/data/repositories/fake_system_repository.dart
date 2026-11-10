@@ -26,6 +26,7 @@ enum DemoScenario { none, smoke, heat }
 class FakeSystemRepository implements SystemRepository {
   FakeSystemRepository({
     this.tickInterval = const Duration(seconds: 2),
+    this.autoResetDuration = const Duration(seconds: 90),
     math.Random? random,
     DateTime Function()? clock,
     double? initialTemperature,
@@ -76,6 +77,7 @@ class FakeSystemRepository implements SystemRepository {
 
   // --- Injected dependencies ---
   final Duration tickInterval;
+  final Duration autoResetDuration;
   final math.Random _random;
   final DateTime Function() _clock;
 
@@ -87,6 +89,8 @@ class FakeSystemRepository implements SystemRepository {
   late double _humidity;
   late double _airQuality;
   bool? _manualToggle; // Omitted in raw JSON until first write
+  DateTime? _manualToggleExpiresAt;
+  Timer? _autoResetTimer;
   bool _fanOn = false;
   String _statusMessage = statusSafeIdle;
 
@@ -174,8 +178,8 @@ class FakeSystemRepository implements SystemRepository {
         _statusMessage = manualActive ? statusMediumManual : statusMediumIdle;
         break;
       case Tier.safe:
-        _fanOn = manualActive;
-        _statusMessage = manualActive ? statusSafeManual : statusSafeIdle;
+        _fanOn = false; // Firmware rule: fan stays OFF in Safe tier
+        _statusMessage = statusSafeIdle;
         break;
     }
   }
@@ -215,6 +219,14 @@ class FakeSystemRepository implements SystemRepository {
   void _onTick() {
     if (_isDisposed) return;
 
+    // Check manual toggle timed auto-reset
+    if (_manualToggle == true &&
+        _manualToggleExpiresAt != null &&
+        !_clock().isBefore(_manualToggleExpiresAt!)) {
+      _manualToggle = false;
+      _manualToggleExpiresAt = null;
+    }
+
     switch (_scenario) {
       case DemoScenario.smoke:
         _stepSmokeScenario();
@@ -252,11 +264,11 @@ class FakeSystemRepository implements SystemRepository {
     else if (_scenarioStep <= 6) {
       _airQuality = 1850.0;
     }
-    // Step down to Medium (1200) for 3 ticks
+    // Step down to Medium (1450) for 3 ticks (Caution is >= 1400)
     else if (_scenarioStep <= 9) {
-      _airQuality = 1200.0;
+      _airQuality = 1450.0;
     }
-    // Recover to diurnal baseline
+    // Recover to diurnal baseline (< 1250)
     else {
       final sample = generateDiurnalSample(
         _clock(),
@@ -271,15 +283,15 @@ class FakeSystemRepository implements SystemRepository {
 
   void _stepHeatScenario() {
     if (_heatRampingUp) {
-      // Ramp +0.5 C per tick up to ~33 C
+      // Ramp +0.5 C per tick up into Danger tier (>= 36 C)
       _temperature += 0.5;
-      if (_temperature >= 33.0) {
-        _temperature = 33.0;
+      if (_temperature >= 36.5) {
+        _temperature = 36.5;
         _heatRampingUp = false;
         _scenarioStep = 0; // Hold counter
       }
     } else if (_scenarioStep < 3) {
-      // Hold briefly at 33 C for 3 ticks
+      // Hold briefly at 36.5 C for 3 ticks
       _scenarioStep++;
     } else {
       // Recover: ramp down -0.5 C per tick to diurnal baseline
@@ -356,6 +368,20 @@ class FakeSystemRepository implements SystemRepository {
   @override
   Future<void> setManualToggle(bool value) async {
     _manualToggle = value;
+    _autoResetTimer?.cancel();
+    if (value) {
+      _manualToggleExpiresAt = _clock().add(autoResetDuration);
+      _autoResetTimer = Timer(autoResetDuration, () {
+        if (_manualToggle == true && !_isDisposed) {
+          _manualToggle = false;
+          _manualToggleExpiresAt = null;
+          _recomputeState();
+          _emitCurrentState();
+        }
+      });
+    } else {
+      _manualToggleExpiresAt = null;
+    }
     _recomputeState();
     _emitCurrentState();
   }
@@ -367,6 +393,7 @@ class FakeSystemRepository implements SystemRepository {
   void dispose() {
     _isDisposed = true;
     _stopTicker();
+    _autoResetTimer?.cancel();
     _stateController.close();
     _rawController.close();
   }

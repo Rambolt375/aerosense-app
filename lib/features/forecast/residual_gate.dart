@@ -170,6 +170,7 @@ class ForecastGate {
     DiurnalModel? aqModel,
     DiurnalFitStatus? tempFitStatus,
     DiurnalFitStatus? aqFitStatus,
+    this.isDeviceOffline = false,
   }) : tempGate = MetricGateTracker(
          metricName: 'Temperature',
          model: tempModel,
@@ -195,6 +196,7 @@ class ForecastGate {
 
   final MetricGateTracker tempGate;
   final MetricGateTracker aqGate;
+  bool isDeviceOffline;
 
   /// Updates the underlying metric models across a refit, preserving gate states
   /// if predictions at [now] are within tolerance.
@@ -211,7 +213,11 @@ class ForecastGate {
 
   /// Creates an identical copy of this gate with fresh tracker clones.
   ForecastGate clone() {
-    final copy = ForecastGate(tempModel: tempGate.model, aqModel: aqGate.model);
+    final copy = ForecastGate(
+      tempModel: tempGate.model,
+      aqModel: aqGate.model,
+      isDeviceOffline: isDeviceOffline,
+    );
     copy.tempGate.status = tempGate.status;
     copy.tempGate.consecutiveInTolerance = tempGate.consecutiveInTolerance;
     copy.tempGate.threshold = tempGate.threshold;
@@ -229,8 +235,11 @@ class ForecastGate {
   }
 
   /// Combined status resolving worst state:
-  /// waitingForTimestamps > learning > lockedOut (incl. noClearPattern) > active
+  /// isDeviceOffline > waitingForTimestamps > learning > lockedOut (incl. noClearPattern) > active
   ForecastGateStatus get status {
+    if (isDeviceOffline) {
+      return ForecastGateStatus.lockedOut;
+    }
     if (tempGate.status == MetricGateStatus.waitingForTimestamps ||
         aqGate.status == MetricGateStatus.waitingForTimestamps) {
       return ForecastGateStatus.waitingForTimestamps;
@@ -260,6 +269,9 @@ class ForecastGate {
 
   /// Standard explanation copy matching DESIGN.md §5 and PRD §FR-6.
   String get statusExplanation {
+    if (isDeviceOffline) {
+      return 'Device offline. Predictive layer locked out. Deterministic safety logic in control.';
+    }
     switch (status) {
       case ForecastGateStatus.active:
         return 'Room pattern is predictable.';

@@ -176,6 +176,9 @@ void main() {
         // Reconciled to stream value (false)
         expect(container.read(manualToggleProvider).value, isFalse);
         expect(container.read(manualToggleProvider).isPending, isFalse);
+
+        fakeRepo.dispose();
+        container.dispose();
       },
     );
   });

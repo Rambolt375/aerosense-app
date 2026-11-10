@@ -1,20 +1,22 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 5 (✅ COMPLETE — awaiting user review before Phase 6)
+> **Current phase:** 5b (✅ COMPLETE — awaiting user review before Phase 6)
 
 ## Blockers / open questions (owner: human)
 
 - [x] Paste real `/system` JSON into `DATA_SAMPLE.json` (confirmed: `airQuality`, `fanStatus: "OFF"`, `humidity`, `statusMessage`, `temperature`; no `manualToggle`, no `lastSeen`)
 - [ ] Confirm `/history` timestamp format/units once firmware creates the node (currently parsed defensively for epoch s/ms and ISO 8601)
 - [ ] Confirm firmware updates `/system` without erasing `manualToggle` (no whole-node `setJSON`)
-- [ ] Ask firmware owner to add `lastSeen` to `/system` (optional, enables stale-device detection; staleness currently a no-op)
+- [ ] Ask firmware owner to add `lastSeen` to `/system` (optional, enables stale-device detection; staleness currently a no-op; device offline is tracked via newest `/history` record)
 - [x] Firebase project ID (`aerosense-502de`), RTDB URL (`asia-southeast1`)
 - [ ] Confirm whether firmware resets `manualToggle` to `false` on boot
+- [ ] Confirm whether humidity is used in firmware tier logic (currently marked `// TODO(confirm)`)
+- [ ] Pre-ventilation / predictive fan start: postponed pending firmware design
 - [ ] Add Inter font files to `assets/fonts/` (Inter-Regular.ttf, Inter-Medium.ttf, Inter-SemiBold.ttf) and uncomment `fonts` block in `pubspec.yaml`
 - [x] Run `flutterfire configure` to register the Android app in the Firebase project and generate final `firebase_options.dart`
 - [ ] Hardware check: toggle in Medium clicks the relay; locked in Danger (needs real ESP32)
-- [ ] Hardware check: verify real firmware status message strings against PRD Table III assumptions
+- [x] Hardware check: verify real firmware status message strings against PRD Table III assumptions (confirmed: bare/prefixed keywords case-insensitive, Normal/Safe, Caution/Medium, Danger)
 
 ## Phase 0: Setup
 - [x] Add dependencies (riverpod, go_router, firebase_*, fl_chart, intl)
@@ -84,6 +86,20 @@
 - [x] Dotted prediction curve on charts when metric is Active, sampled at 120 points across the visible range
 - [x] All 206 tests passing, `flutter analyze` clean (0 issues)
 
+## Phase 5b: Firmware alignment
+- [x] Confirmed firmware thresholds implemented in `lib/core/thresholds.dart`: Temperature Caution $\ge$ 33.5, Danger $\ge$ 36.0; Air Quality Caution $\ge$ 1400, Danger $\ge$ 2000, recovery clear level 1250 (firmware hysteresis); Humidity 60/75 marked `// TODO(confirm)`.
+- [x] ThresholdPreset architecture: decoupled `firmware` preset from `demo` preset, exposed via single source of truth `Thresholds.current` with defensive JSON parser (`fromMap`).
+- [x] Inclusive comparisons: changed `<` to `<=` and `>` to `>=` across `Tier.fromValues`, `MetricTier`, and test boundary values.
+- [x] Firmware status message parsing: case-insensitive bare and prefixed keywords (`NORMAL`/`SAFE` -> Safe, `CAUTION`/`MEDIUM` -> Medium, `DANGER` -> Danger, and `"System Safe"`), displaying app-friendly copy for bare keywords in `TierBanner`.
+- [x] Manual fan toggle logic: enabled ONLY in Medium tier; disabled in Safe with explanatory copy ("The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy."); locked on in Danger; disabled on device offline.
+- [x] Timed auto-reset: `FakeSystemRepository` auto-resets `manualToggle` to `false` after configurable duration (default 90 s, injected clock), optimistic toggle reconciles to stream.
+- [x] 10-minute cadence: `AppConfig.expectedLogInterval = Duration(minutes: 10)`; `HistoryRange` counts: 1 h = 6, 6 h = 36, 24 h = 144, 7 d = 1008; cap at 1008 records; 2.5x gap threshold; synthetic spacing 10 min; empty state copy "The device logs every 10 minutes."
+- [x] Forecast data requirements: removed point-count gate (`AppConfig.minForecastPoints`); forecast requires span $\ge$ 48 h and $\ge$ 20 hourly bins (point counts used for progress display only); demo mode uses production rules.
+- [x] Device offline detection: offline after 2 missed cycles = 20 min (`2 * expectedLogInterval`) based on newest `/history` timestamp; evaluated every 30 s on injected clock; unknown if history empty/error; offline notice with "Last data at HH:mm", dimmed metrics, disabled toggle, and locked out forecast gate; demo mode never reports offline.
+- [x] RTDB rules: added `/config` node to `database.rules.json` (read: `auth != null`, write: device UID).
+- [x] Pre-ventilation / predictive fan start postponed pending firmware design.
+- [x] All 229 unit and widget tests passing, `flutter analyze` clean (0 issues).
+
 ## Phase 6: Polish (P2)
 - [ ] Preventive ventilation suggestion (FR-7), with the "app must be open" limitation shown
 - [ ] In-app Medium/Danger notifications, debounced
@@ -139,6 +155,19 @@
   - Verified ISO 8601 'Z' suffix parsing returns local time (`toLocal()`), with unit test in `test/parse_timestamp_test.dart`.
   - Set `AppConfig.minForecastPoints = 576` (2 full days) with architectural comment documenting that a single 24 h cycle cannot rule out transient anomalies or confirm periodic recurrence, while keeping the 24 h span and 20 hourly bins coverage checks.
   - All 210 tests passing, `flutter analyze` clean (0 issues).
+
+- 2026-11-10: Phase 5b (Firmware Alignment) implemented:
+  - Encapsulated thresholds into immutable `ThresholdPreset` (`firmware` and `demo` presets) with defensive JSON/Map parser, exposed as static getters via `Thresholds.current` (single source of truth). Confirmed firmware thresholds: Temperature Caution >= 33.5, Danger >= 36.0; Air Quality Caution >= 1400, Danger >= 2000, recovery clear 1250 (firmware hysteresis). Humidity 60/75 marked `// TODO(confirm)`.
+  - Inclusive boundary checks (`>=`) aligned across `Tier.fromValues`, `MetricTier`, and boundary tests.
+  - Case-insensitive firmware `statusMessage` parsing supports bare and prefixed keywords (`NORMAL`/`SAFE` -> Safe, `CAUTION`/`MEDIUM` -> Medium, `DANGER` -> Danger, `"System Safe"`), displaying app-friendly copy for bare keywords in `TierBanner`.
+  - Manual fan toggle restricted to Medium tier only; disabled in Safe with explanatory text; locked on in Danger; disabled on device offline.
+  - `FakeSystemRepository` auto-resets `manualToggle` back to `false` after 90 seconds using injected clock; optimistic toggle reconciles cleanly to stream value.
+  - History cadence updated to 10 minutes (`AppConfig.expectedLogInterval = Duration(minutes: 10)`): `HistoryRange` counts 1 h = 6, 6 h = 36, 24 h = 144, 7 d = 1008; records capped at 1008; gap threshold derived dynamically at 2.5x median interval (~25 min); empty state copy updated to "The device logs every 10 minutes."
+  - Removed point-count gate from diurnal forecasting (`AppConfig.minForecastPoints` removed); gating strictly requires time span >= 48 h and >= 20 hourly bins (point counts used for progress display calculation only); Demo Mode uses the exact same production rules.
+  - Device offline detection (`deviceStatusProvider`) checks newest `/history` timestamp staler than 2 missed cycles (20 minutes) on a 30-second periodic timer with injected clock; unknown if history empty/error; renders offline warning card with "Last data at HH:mm", dims metrics via `Opacity(0.45)`, disables manual toggle, and locks out forecast gate. Demo Mode always reports online.
+  - Added `/config` node to `database.rules.json` (read: `auth != null`, write: device UID).
+  - Pre-ventilation / predictive fan start postponed pending firmware design.
+  - Total test suite expanded to 229 tests, static analysis clean (0 issues).
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

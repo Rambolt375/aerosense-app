@@ -11,25 +11,55 @@ enum Tier {
   medium,
   danger;
 
-  /// Parses the [statusMessage] prefix written by the ESP32 firmware.
+  /// Parses the [statusMessage] written by the ESP32 firmware.
   ///
   /// Returns null when the message is null, empty, or uses an unrecognised
-  /// prefix — the caller should fall back to [Tier.fromValues] in that case.
+  /// format — the caller falls back to [Tier.fromValues] in that case.
   ///
-  /// Recognised prefixes (case-sensitive, firmware-authoritative):
-  ///   - "DANGER:" → [Tier.danger]
-  ///   - "MEDIUM:" → [Tier.medium]
-  ///   - "System Safe" (exact) or "SAFE:" prefix → [Tier.safe]
+  /// Recognised formats (case-insensitive, firmware-authoritative):
+  ///   - Bare "DANGER", or "DANGER:" prefix / trailing text → [Tier.danger]
+  ///   - Bare "CAUTION", "MEDIUM", or "CAUTION:" / "MEDIUM:" prefix / trailing text → [Tier.medium]
+  ///   - Bare "NORMAL", "SAFE", "NORMAL:" / "SAFE:" prefix, or "System Safe" → [Tier.safe]
   static Tier? fromStatusMessage(String? msg) {
-    if (msg == null || msg.isEmpty) return null;
-    if (msg.startsWith('DANGER:')) return Tier.danger;
-    if (msg.startsWith('MEDIUM:')) return Tier.medium;
-    // "System Safe" is the firmware's idle message; "SAFE:" covers manual overrides.
-    if (msg == 'System Safe' || msg.startsWith('SAFE:')) return Tier.safe;
+    if (msg == null) return null;
+    final trimmed = msg.trim();
+    if (trimmed.isEmpty) return null;
+
+    if (trimmed.toLowerCase() == 'system safe') return Tier.safe;
+
+    // Danger: bare keyword or prefix
+    if (RegExp(
+      r'^(DANGER)(?::|\s|$)',
+      caseSensitive: false,
+    ).hasMatch(trimmed)) {
+      return Tier.danger;
+    }
+
+    // Caution / Medium: bare keyword or prefix
+    if (RegExp(
+      r'^(CAUTION|MEDIUM)(?::|\s|$)',
+      caseSensitive: false,
+    ).hasMatch(trimmed)) {
+      return Tier.medium;
+    }
+
+    // Normal / Safe: bare keyword or prefix
+    if (RegExp(
+      r'^(NORMAL|SAFE)(?::|\s|$)',
+      caseSensitive: false,
+    ).hasMatch(trimmed)) {
+      return Tier.safe;
+    }
+
     return null; // unrecognised format
   }
 
   /// Derives a tier from raw sensor values using the thresholds in [Thresholds].
+  ///
+  /// NOTE: Comparisons are inclusive (>=). [Tier.fromValues] cannot model the
+  /// 1250 air quality recovery hysteresis implemented in firmware (where returning
+  /// to Normal after Caution/Danger requires AQ < 1250). The firmware's
+  /// [statusMessage] is authoritative; [fromValues] is strictly a fallback.
   ///
   /// Danger is checked first (worst-indicator-wins). Null values are excluded
   /// — a single null field cannot by itself elevate the tier.
@@ -39,17 +69,21 @@ enum Tier {
     double? airQuality,
   }) {
     final tempDanger =
-        temperature != null && temperature > Thresholds.tempDangerMin;
+        temperature != null && temperature >= Thresholds.tempDangerMin;
     final humDanger =
-        humidity != null && humidity > Thresholds.humidityDangerMin;
+        Thresholds.useHumidity &&
+        humidity != null &&
+        humidity >= Thresholds.humidityDangerMin;
     final aqDanger =
-        airQuality != null && airQuality > Thresholds.airQualityDangerMin;
+        airQuality != null && airQuality >= Thresholds.airQualityDangerMin;
     if (tempDanger || humDanger || aqDanger) return Tier.danger;
 
     final tempMedium =
         temperature != null && temperature >= Thresholds.tempSafeMax;
     final humMedium =
-        humidity != null && humidity >= Thresholds.humiditySafeMax;
+        Thresholds.useHumidity &&
+        humidity != null &&
+        humidity >= Thresholds.humiditySafeMax;
     final aqMedium =
         airQuality != null && airQuality >= Thresholds.airQualitySafeMax;
     if (tempMedium || humMedium || aqMedium) return Tier.medium;

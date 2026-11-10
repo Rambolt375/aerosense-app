@@ -141,7 +141,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('No history yet'), findsOneWidget);
-        expect(find.text('The device logs every 5 minutes.'), findsOneWidget);
+        expect(find.text('The device logs every 10 minutes.'), findsOneWidget);
         expect(find.byType(MetricChartCard), findsNothing);
       },
     );
@@ -232,10 +232,10 @@ void main() {
               ) ??
               false,
         );
-        expect(tempSemantics.properties.label, contains('Safe below 28.0 °C'));
+        expect(tempSemantics.properties.label, contains('Safe below 33.5 °C'));
         expect(
           tempSemantics.properties.label,
-          contains('Danger above 32.0 °C'),
+          contains('Danger above 36.0 °C'),
         );
       },
     );
