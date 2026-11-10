@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 4 (✅ COMPLETE — awaiting user review before Phase 5)
+> **Current phase:** 5 (✅ COMPLETE — awaiting user review before Phase 6)
 
 ## Blockers / open questions (owner: human)
 
@@ -74,10 +74,15 @@
 - [x] Unit tests for pipeline (25 tests) and widget tests for history screen (7 tests) passing; 187 total app tests pass clean
 
 ## Phase 5: Forecasting
-- [ ] Least-squares sinusoidal fit (pure Dart) + unit tests
-- [ ] Residual gate (`k * stddev`, 3-sample hysteresis) + unit tests
-- [ ] Forecast status card: Learning / Active / Locked out
-- [ ] Dotted prediction curve on charts when Active
+- [x] Least-squares sinusoidal fit (pure Dart) + unit tests
+- [x] Outlier trimming via 1.4826 * MAD on first-pass residuals + unit test for large day-long outlier cluster
+- [x] Minimum learning check (>= 24 h span AND >= 20 hourly bins in prod; 36 points in demo) + synthetic timestamp refusal
+- [x] Per-metric residual gates (temperature and air quality) with 3-sample hysteresis and DHT22 0.5 °C / ADC noise floor
+- [x] Shared 24 h diurnal generator (`generateDiurnalSample`) between `FakeHistoryRepository` and `FakeSystemRepository`
+- [x] Riverpod `diurnalFitProvider` (depends on history records only, not range selector) and `forecastGateNotifierProvider`
+- [x] Forecast status card: Active / Locked out (with explanation copy) / Learning / Waiting for timestamps + metric pills & predicted peak times
+- [x] Dotted prediction curve on charts when metric is Active, sampled at 120 points across the visible range
+- [x] All 206 tests passing, `flutter analyze` clean (0 issues)
 
 ## Phase 6: Polish (P2)
 - [ ] Preventive ventilation suggestion (FR-7), with the "app must be open" limitation shown
@@ -117,6 +122,15 @@
 - 2026-11-10: `FakeSystemRepository` mirrors exact firmware contract: no `lastSeen`, raw map omits `manualToggle` until first write, fan forced ON in Danger tier, real status strings from PRD Table III and `DATA_SAMPLE.json`. Timers start on stream listen, stop when all cancel, and dispose when demo mode turns off.
 - 2026-11-10: `FakeHistoryRepository` generates deterministic 2016 records (7 days × 288 points/day, 5-minute spacing) with anchor rounded down to 5-minute boundary, dominant 24 h air quality diurnal wave, and relative anomaly injection flag.
 - 2026-11-10: Phase 4 (History visualization) implemented. Range sizes matched to 5-min logging interval (1 h: 12, 6 h: 72, 24 h: 288, 7 d: 2016). Proportional LTTB downsampling runs strictly within contiguous segments and joins with `FlSpot.nullSpot` to prevent downsampling distortion across missing-data gaps (> 15 min). Threshold bands drawn at 12% opacity with accompanying dot+label legend and Y-axis labeled lines to ensure accessibility without color-only indicators. `historyNotifierProvider` uses `ref.keepAlive()` and `retry: (_, _) => null` with explicit `retry()` reload to cleanly display error states and retry without automatic retry delay loops. Semantics descriptions provided for each metric chart.
+- 2026-11-10: Phase 5 (Diurnal Forecasting & Residual Gate) implemented.
+  - Linear least-squares solver (`lib/features/forecast/sinusoidal_fit.dart`) written in pure Dart using 3x3 normal equations with partial pivoting and relative singularity thresholds. Evaluates seconds-of-day directly from `DateTime` fields without machine timezone dependency.
+  - Robust diurnal fitter (`lib/features/forecast/robust_diurnal_fitter.dart`) implements 2-pass OLS with `1.4826 * MAD` outlier filtering on residuals (proven to cleanly reject day-long 24 h anomaly clusters without distorting wave parameters or inflating residual standard deviation).
+  - Production data gates require >= 24 h span AND >= 20 hourly bins across the day to ensure coverage before fitting; demo mode permits short live testing (36 points). Refuses fitting on synthetic timestamps ("Waiting for real timestamps").
+  - Enforced sensor accuracy noise floors: DHT22 0.5 °C floor and 30 ADC air quality floor. If amplitude is small relative to residual spread ($A/\sigma < 0.4$), the room is flagged as having "No clear daily pattern" and peak times are omitted. NOTE: Constants are not tuned on fake data and must be recalibrated when real 24 h+ physical logs arrive.
+  - Per-metric gates (`lib/features/forecast/residual_gate.dart`) track Temperature and Air Quality independently with 3-sample hysteresis. Fresh fits start in `lockedOut` until 3 consecutive in-tolerance samples occur. Live samples with null or NaN values are skipped without disrupting gate status. Worst state wins in the overall combined status card.
+  - Extracted `generateDiurnalSample` into `lib/data/repositories/fake_diurnal_generator.dart` shared by both `FakeHistoryRepository` and `FakeSystemRepository`. Live demo telemetry tracks diurnal baseline at current clock time, preventing persistent gate lockout in Demo Mode while preserving scripted smoke/heat scenario overrides.
+  - Riverpod architecture: `diurnalFitProvider` depends on history records only, not `selectedRangeProvider`, preventing refits on range changes. Sampled forecast dotted curves generated at 120 points across visible chart windows and hooked into Phase 4 charts.
+  - UI: `ForecastStatusCard` placed on `ForecastScreen` and on `HistoryScreen` displaying overall status pill, exact explanation copy ("Predictive layer locked out. Deterministic safety logic in control."), per-metric pills with hysteresis count, and predicted peak times. Full parameter diagnostic tables rendered on `ForecastScreen`.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

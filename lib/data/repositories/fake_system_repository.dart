@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
+import 'package:aerosense_app/data/repositories/fake_diurnal_generator.dart';
 import 'package:aerosense_app/data/repositories/system_repository.dart';
 
 /// Active simulation scenario for Demo Mode.
@@ -15,7 +16,10 @@ enum DemoScenario { none, smoke, heat }
 /// - Computes ventilation tier using [Thresholds] directly.
 /// - Fan forced ON in Danger tier (safety override).
 /// - Honors `manualToggle` in Safe and Medium tiers.
-/// - Drift loop with mean-reversion every [tickInterval].
+/// - Baseline follows [generateDiurnalSample] at the current [clock] time,
+///   ensuring live demo readings match the historical training distribution
+///   and prevent persistent residual gate lockout.
+/// - Scripted smoke/heat scenarios layered on top of the diurnal baseline.
 /// - Emits exact firmware strings from PRD Table III and DATA_SAMPLE.json.
 /// - In raw snapshot: omits `manualToggle` until first write, omits `lastSeen`.
 /// - Fully testable with injected [tickInterval], [random], and [clock].
@@ -24,14 +28,19 @@ class FakeSystemRepository implements SystemRepository {
     this.tickInterval = const Duration(seconds: 2),
     math.Random? random,
     DateTime Function()? clock,
-    double initialTemperature = baselineTemp,
-    double initialHumidity = baselineHumidity,
-    double initialAirQuality = baselineAirQuality,
+    double? initialTemperature,
+    double? initialHumidity,
+    double? initialAirQuality,
   }) : _random = random ?? math.Random(),
-       _clock = clock ?? DateTime.now,
-       _temperature = initialTemperature,
-       _humidity = initialHumidity,
-       _airQuality = initialAirQuality {
+       _clock = clock ?? DateTime.now {
+    final initialSample = generateDiurnalSample(
+      _clock(),
+      random: _random,
+      addNoise: false,
+    );
+    _temperature = initialTemperature ?? initialSample.temperature;
+    _humidity = initialHumidity ?? initialSample.humidity;
+    _airQuality = initialAirQuality ?? initialSample.airQuality;
     _initControllers();
     _recomputeState();
   }
@@ -40,6 +49,20 @@ class FakeSystemRepository implements SystemRepository {
   static const double baselineTemp = 24.5;
   static const double baselineHumidity = 48.0;
   static const double baselineAirQuality = 650.0;
+
+  /// Current diurnal baseline temperature at the current [clock] time.
+  double get currentBaselineTemp => generateDiurnalSample(
+    _clock(),
+    random: _random,
+    addNoise: false,
+  ).temperature;
+
+  /// Current diurnal baseline air quality at the current [clock] time.
+  double get currentBaselineAirQuality => generateDiurnalSample(
+    _clock(),
+    random: _random,
+    addNoise: false,
+  ).airQuality;
 
   // Real firmware status strings from PRD Table III and DATA_SAMPLE.json
   static const String statusSafeIdle = 'System Safe';
@@ -60,9 +83,9 @@ class FakeSystemRepository implements SystemRepository {
   DateTime Function() get clock => _clock;
 
   // --- Simulated state ---
-  double _temperature;
-  double _humidity;
-  double _airQuality;
+  late double _temperature;
+  late double _humidity;
+  late double _airQuality;
   bool? _manualToggle; // Omitted in raw JSON until first write
   bool _fanOn = false;
   String _statusMessage = statusSafeIdle;
@@ -209,21 +232,14 @@ class FakeSystemRepository implements SystemRepository {
   }
 
   void _stepDrift() {
-    // Subtle mean-reverting drift
-    final tempDelta =
-        (_random.nextDouble() - 0.5) * 0.3 -
-        (_temperature - baselineTemp) * 0.1;
-    _temperature = (_temperature + tempDelta).clamp(18.0, 38.0);
-
-    final humDelta =
-        (_random.nextDouble() - 0.5) * 0.8 -
-        (_humidity - baselineHumidity) * 0.1;
-    _humidity = (_humidity + humDelta).clamp(20.0, 90.0);
-
-    final aqDelta =
-        (_random.nextDouble() - 0.5) * 24.0 -
-        (_airQuality - baselineAirQuality) * 0.1;
-    _airQuality = (_airQuality + aqDelta).clamp(200.0, 4000.0);
+    final sample = generateDiurnalSample(
+      _clock(),
+      random: _random,
+      addNoise: true,
+    );
+    _temperature = sample.temperature;
+    _humidity = sample.humidity;
+    _airQuality = sample.airQuality;
   }
 
   void _stepSmokeScenario() {
@@ -240,9 +256,14 @@ class FakeSystemRepository implements SystemRepository {
     else if (_scenarioStep <= 9) {
       _airQuality = 1200.0;
     }
-    // Recover to Safe baseline
+    // Recover to diurnal baseline
     else {
-      _airQuality = baselineAirQuality;
+      final sample = generateDiurnalSample(
+        _clock(),
+        random: _random,
+        addNoise: true,
+      );
+      _airQuality = sample.airQuality;
       _scenario = DemoScenario.none;
       _scenarioStep = 0;
     }
@@ -261,10 +282,15 @@ class FakeSystemRepository implements SystemRepository {
       // Hold briefly at 33 C for 3 ticks
       _scenarioStep++;
     } else {
-      // Recover: ramp down -0.5 C per tick to baseline
+      // Recover: ramp down -0.5 C per tick to diurnal baseline
+      final baseline = generateDiurnalSample(
+        _clock(),
+        random: _random,
+        addNoise: false,
+      ).temperature;
       _temperature -= 0.5;
-      if (_temperature <= baselineTemp) {
-        _temperature = baselineTemp;
+      if (_temperature <= baseline) {
+        _temperature = baseline;
         _scenario = DemoScenario.none;
         _scenarioStep = 0;
         _heatRampingUp = true;
@@ -295,14 +321,19 @@ class FakeSystemRepository implements SystemRepository {
     _emitCurrentState();
   }
 
-  /// Resets simulated sensor telemetry back to clean Safe baselines.
+  /// Resets simulated sensor telemetry back to clean diurnal baselines.
   void resetToBaseline() {
     _scenario = DemoScenario.none;
     _scenarioStep = 0;
     _heatRampingUp = true;
-    _temperature = baselineTemp;
-    _humidity = baselineHumidity;
-    _airQuality = baselineAirQuality;
+    final sample = generateDiurnalSample(
+      _clock(),
+      random: _random,
+      addNoise: false,
+    );
+    _temperature = sample.temperature;
+    _humidity = sample.humidity;
+    _airQuality = sample.airQuality;
     _recomputeState();
     _emitCurrentState();
   }

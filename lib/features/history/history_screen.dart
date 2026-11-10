@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/theme.dart';
+import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
 import 'package:aerosense_app/features/history/history_notifier.dart';
 import 'package:aerosense_app/features/history/history_pipeline.dart';
 import 'package:aerosense_app/features/history/widgets/chart_skeleton.dart';
@@ -144,11 +145,16 @@ class HistoryScreen extends ConsumerWidget {
             subtitle: 'Try selecting a wider time range.',
           ),
         ] else ...[
+          // Diurnal forecast confidence & status card
+          const ForecastStatusCard(),
+          const SizedBox(height: 16),
+
           // Three synchronized metric charts
           MetricChartCard(
             title: 'Temperature',
             unit: '°C',
             spots: data.temperatureSpots,
+            forecastSpots: data.temperatureForecastSpots,
             xAxisConfig: data.xAxisConfig,
             yBounds: data.temperatureYBounds,
             semanticsSummary: data.temperatureSummary,
@@ -170,6 +176,7 @@ class HistoryScreen extends ConsumerWidget {
             unit: 'index',
             caption: 'Relative index, uncalibrated',
             spots: data.airQualitySpots,
+            forecastSpots: data.airQualityForecastSpots,
             xAxisConfig: data.xAxisConfig,
             yBounds: data.airQualityYBounds,
             semanticsSummary: data.airQualitySummary,

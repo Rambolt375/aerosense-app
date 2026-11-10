@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:aerosense_app/data/models/history_record.dart';
+import 'package:aerosense_app/data/repositories/fake_diurnal_generator.dart';
 import 'package:aerosense_app/data/repositories/history_repository.dart';
 
 /// Fake [HistoryRepository] for Demo Mode.
@@ -69,35 +70,12 @@ class FakeHistoryRepository implements HistoryRepository {
       // Oldest record at index 0, newest record at index count - 1 (anchor)
       final time = roundedAnchor.subtract(interval * (count - 1 - i));
 
-      // Time-of-day in local time for diurnal wave
-      final secondsSinceMidnight =
-          time.hour * 3600 + time.minute * 60 + time.second;
-      final theta = 2 * math.pi * (secondsSinceMidnight / 86400.0);
-      final hourOfDay = secondsSinceMidnight / 3600.0;
+      final base = generateDiurnalSample(time, random: random, addNoise: true);
+      var temp = base.temperature;
+      var hum = base.humidity;
+      var aq = base.airQuality;
 
-      // 1. Temperature: Peak at ~15:00 (~29.5 °C), trough at ~03:00 (~20.5 °C)
-      // Phase angle: theta_15:00 = 1.25 pi -> sin(theta - 0.75 pi) = 1 at 15:00
-      final tempNoise = (random.nextDouble() - 0.5) * 0.5;
-      var temp = 25.0 + 4.5 * math.sin(theta - 0.75 * math.pi) + tempNoise;
-
-      // 2. Humidity: Inverse diurnal cycle (peaks at night, drops in afternoon heat)
-      final humNoise = (random.nextDouble() - 0.5) * 1.5;
-      var hum = 55.0 - 12.0 * math.sin(theta - 0.75 * math.pi) + humNoise;
-
-      // 3. Air Quality:
-      // Dominant 24-hour sinusoidal component peaking in the evening (~18:00):
-      // theta_18:00 = 1.5 pi -> sin(theta - pi) = 1 at 18:00
-      final aqSinWave = 750.0 + 180.0 * math.sin(theta - math.pi);
-
-      // Morning bump (~08:30) and evening cooking bump (~19:30)
-      final morningBump = 100.0 * math.exp(-math.pow(hourOfDay - 8.5, 2) / 2.0);
-      final eveningBump =
-          140.0 * math.exp(-math.pow(hourOfDay - 19.5, 2) / 2.0);
-      final aqNoise = (random.nextDouble() - 0.5) * 30.0;
-
-      var aq = aqSinWave + morningBump + eveningBump + aqNoise;
-
-      // 4. Injected anomalies (if enabled)
+      // Injected anomalies (if enabled)
       if (includeAnomalies) {
         if (i >= smokeStart && i < smokeEnd) {
           // Kitchen smoke spike into Danger tier (> 2000)
@@ -111,7 +89,6 @@ class FakeHistoryRepository implements HistoryRepository {
         }
       }
 
-      // Clamping to physical bounds
       temp = temp.clamp(15.0, 42.0);
       hum = hum.clamp(10.0, 95.0);
       aq = aq.clamp(100.0, 4095.0);

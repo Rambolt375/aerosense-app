@@ -14,6 +14,7 @@ void main() {
       repo = FakeSystemRepository(
         tickInterval: const Duration(milliseconds: 20),
         random: math.Random(123),
+        clock: () => DateTime(2026, 11, 10, 8, 30),
       );
     });
 
@@ -156,6 +157,7 @@ void main() {
       () async {
         final repo = FakeSystemRepository(
           tickInterval: const Duration(milliseconds: 10),
+          clock: () => DateTime(2026, 11, 10, 8, 30),
         );
 
         final states = <SystemState>[];
@@ -182,7 +184,7 @@ void main() {
         expect(repo.currentScenario, equals(DemoScenario.none));
         expect(
           repo.currentAirQuality,
-          closeTo(FakeSystemRepository.baselineAirQuality, 30.0),
+          closeTo(repo.currentBaselineAirQuality, 30.0),
         );
         expect(repo.currentTier, equals(Tier.safe));
         expect(repo.currentFanOn, isFalse);
@@ -195,6 +197,7 @@ void main() {
     test('Heat spike simulation ramps +0.5 C per tick to 33 C, holds, and recovers', () async {
       final repo = FakeSystemRepository(
         tickInterval: const Duration(milliseconds: 10),
+        clock: () => DateTime(2026, 11, 10, 8, 30),
         initialTemperature:
             31.0, // Start close to Danger threshold (32) for fast test
       );
@@ -211,10 +214,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 450));
 
       expect(repo.currentScenario, equals(DemoScenario.none));
-      expect(
-        repo.currentTemperature,
-        closeTo(FakeSystemRepository.baselineTemp, 0.5),
-      );
+      expect(repo.currentTemperature, closeTo(repo.currentBaselineTemp, 0.5));
       expect(repo.currentTier, equals(Tier.safe));
 
       await sub.cancel();
@@ -224,6 +224,7 @@ void main() {
     test('resetToBaseline cancels active scenarios immediately', () async {
       final repo = FakeSystemRepository(
         tickInterval: const Duration(milliseconds: 10),
+        clock: () => DateTime(2026, 11, 10, 8, 30),
       );
 
       final sub = repo.watchSystemState().listen((_) {});
@@ -235,10 +236,7 @@ void main() {
 
       repo.resetToBaseline();
       expect(repo.currentScenario, equals(DemoScenario.none));
-      expect(
-        repo.currentAirQuality,
-        equals(FakeSystemRepository.baselineAirQuality),
-      );
+      expect(repo.currentAirQuality, equals(repo.currentBaselineAirQuality));
       expect(repo.currentTier, equals(Tier.safe));
       expect(repo.currentFanOn, isFalse);
 

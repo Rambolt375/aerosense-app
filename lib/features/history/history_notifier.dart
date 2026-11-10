@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/forecast/forecast_providers.dart';
+import 'package:aerosense_app/features/forecast/residual_gate.dart';
 import 'package:aerosense_app/features/history/history_pipeline.dart';
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,8 @@ class HistoryChartData {
     required this.temperatureSpots,
     required this.humiditySpots,
     required this.airQualitySpots,
+    this.temperatureForecastSpots,
+    this.airQualityForecastSpots,
     required this.xAxisConfig,
     required this.temperatureYBounds,
     required this.humidityYBounds,
@@ -118,6 +122,9 @@ class HistoryChartData {
   final List<FlSpot> humiditySpots;
   final List<FlSpot> airQualitySpots;
 
+  final List<FlSpot>? temperatureForecastSpots;
+  final List<FlSpot>? airQualityForecastSpots;
+
   final XAxisConfig xAxisConfig;
   final YAxisBounds temperatureYBounds;
   final YAxisBounds humidityYBounds;
@@ -132,6 +139,7 @@ class HistoryChartData {
 final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
   final historyAsync = ref.watch(historyNotifierProvider);
   final range = ref.watch(selectedRangeProvider);
+  final gate = ref.watch(forecastGateNotifierProvider);
 
   return historyAsync.whenData((historyState) {
     if (historyState.allRecords.isEmpty) {
@@ -144,6 +152,8 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
         temperatureSpots: const [],
         humiditySpots: const [],
         airQualitySpots: const [],
+        temperatureForecastSpots: null,
+        airQualityForecastSpots: null,
         xAxisConfig: xConfig,
         temperatureYBounds: calculateYAxisBounds(
           spots: const [],
@@ -268,6 +278,29 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       fractionDigits: 0,
     );
 
+    // Step 8: Sample forecast dotted series if active
+    final tempForecast =
+        (gate.tempGate.status == MetricGateStatus.active &&
+            gate.tempGate.model != null)
+        ? sampleForecastSeries(
+            model: gate.tempGate.model!,
+            minX: xConfig.minX,
+            maxX: xConfig.maxX,
+            pointCount: 120,
+          )
+        : null;
+
+    final aqForecast =
+        (gate.aqGate.status == MetricGateStatus.active &&
+            gate.aqGate.model != null)
+        ? sampleForecastSeries(
+            model: gate.aqGate.model!,
+            minX: xConfig.minX,
+            maxX: xConfig.maxX,
+            pointCount: 120,
+          )
+        : null;
+
     return HistoryChartData(
       selectedRange: range,
       hasAnyHistory: true,
@@ -276,6 +309,8 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       temperatureSpots: tempSpots,
       humiditySpots: humSpots,
       airQualitySpots: aqSpots,
+      temperatureForecastSpots: tempForecast,
+      airQualityForecastSpots: aqForecast,
       xAxisConfig: xConfig,
       temperatureYBounds: tempBounds,
       humidityYBounds: humBounds,
