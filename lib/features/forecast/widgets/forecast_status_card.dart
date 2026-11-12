@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/features/forecast/forecast_providers.dart';
 import 'package:aerosense_app/features/forecast/residual_gate.dart';
@@ -60,10 +61,13 @@ class ForecastStatusCard extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header: Title and Overall Status Pill
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                Text('Forecast status', style: textTheme.titleMedium),
-                const Spacer(),
+                Text(AppStrings.forecastStatus, style: textTheme.titleMedium),
                 _buildOverallPill(
                   context,
                   overallStatus,
@@ -218,12 +222,14 @@ class ForecastStatusCard extends ConsumerWidget {
         children: [
           Icon(icon, size: 14, color: fgColor),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: fgColor,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: fgColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -281,10 +287,12 @@ class ForecastStatusCard extends ConsumerWidget {
             decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
           ),
           const SizedBox(width: 6),
-          Text(
-            '$metricName: $statusText',
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(fontWeight: FontWeight.w500),
+          Flexible(
+            child: Text(
+              '$metricName: $statusText',
+              style: Theme.of(context).textTheme.labelSmall
+                  ?.copyWith(fontWeight: FontWeight.w500),
+            ),
           ),
         ],
       ),

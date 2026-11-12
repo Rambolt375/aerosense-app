@@ -1,4 +1,5 @@
 import 'package:aerosense_app/core/config.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 
 /// Exhaustive UI states for the FanCard component.
@@ -129,27 +130,29 @@ String fanButtonLabel({
   switch (state) {
     case FanCardUiState.idle:
       if (manualDuration != null) {
-        return 'Ventilate for ${manualDuration.inMinutes} min';
+        return AppStrings.fanVentilateFor(manualDuration.inMinutes);
       }
-      return 'Ventilate';
+      return AppStrings.fanVentilate;
     case FanCardUiState.pending:
-      return 'Starting fan...';
+      return AppStrings.fanStarting;
     case FanCardUiState.running:
       if (remainingTime != null) {
-        return 'Fan running, ${formatCountdown(remainingTime)} left';
+        return AppStrings.fanRunningWithCountdown(
+          formatCountdown(remainingTime),
+        );
       }
-      return 'Fan running';
+      return AppStrings.fanRunning;
     case FanCardUiState.waitingForDevice:
-      return 'Waiting for the device...';
+      return AppStrings.fanWaitingForDevice;
     case FanCardUiState.safe:
     case FanCardUiState.danger:
     case FanCardUiState.dangerLatched:
     case FanCardUiState.appOffline:
     case FanCardUiState.deviceOffline:
       if (manualDuration != null) {
-        return 'Ventilate for ${manualDuration.inMinutes} min';
+        return AppStrings.fanVentilateFor(manualDuration.inMinutes);
       }
-      return 'Ventilate';
+      return AppStrings.fanVentilate;
   }
 }
 
@@ -160,25 +163,25 @@ String fanCardHelperText({
 }) {
   switch (state) {
     case FanCardUiState.appOffline:
-      return 'App is offline. Fan control unavailable.';
+      return AppStrings.fanHelperAppOffline;
     case FanCardUiState.deviceOffline:
-      return 'Device offline. Fan control unavailable.';
+      return AppStrings.fanHelperDeviceOffline;
     case FanCardUiState.safe:
-      return 'The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy.';
+      return AppStrings.fanHelperSafe;
     case FanCardUiState.danger:
-      return 'Safety override active. The fan is forced on and manual control is bypassed.';
+      return AppStrings.fanHelperDanger;
     case FanCardUiState.dangerLatched:
-      return 'Fan stays on until the room is safe.';
+      return AppStrings.fanHelperDangerLatched;
     case FanCardUiState.waitingForDevice:
-      return 'Waiting for the device to turn off the fan.';
+      return AppStrings.fanHelperWaitingForDevice;
     case FanCardUiState.running:
-      return 'Manual ventilation is on. The fan is running.';
+      return AppStrings.fanHelperRunning;
     case FanCardUiState.pending:
-      return 'Sending request to device...';
+      return AppStrings.fanHelperPending;
     case FanCardUiState.idle:
       if (manualDuration != null) {
-        return 'Room is stuffy. The fan stays off unless you turn it on.';
+        return AppStrings.fanHelperIdleKnown;
       }
-      return 'The fan runs for a fixed time set by the device.';
+      return AppStrings.fanHelperIdleUnknown;
   }
 }

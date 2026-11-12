@@ -94,7 +94,7 @@ class SystemState {
     final fanOn = _parseFanStatus(json['fanStatus']);
     final manualToggle = (json['manualToggle'] as bool?) ?? false;
     final statusMessage = (json['statusMessage'] as String?) ?? '';
-    final manualEndsAt = parseTimestamp(json['manualEndsAt']);
+    final manualEndsAt = parseTimestamp(json['manualEndsAt'], silent: true);
 
     final tier = Tier.resolve(
       statusMessage,

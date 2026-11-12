@@ -87,5 +87,13 @@ void main() {
       // boundary ambiguity that existed with the original 1577836799 value.
       expect(parseTimestamp(1514764800), isNull);
     });
+
+    // --- silent mode for manualEndsAt ---
+    test('silent: true with 0, "0", and null returns null silently', () {
+      expect(parseTimestamp(null, silent: true), isNull);
+      expect(parseTimestamp(0, silent: true), isNull);
+      expect(parseTimestamp('0', silent: true), isNull);
+      expect(parseTimestamp(45000, silent: true), isNull);
+    });
   });
 }

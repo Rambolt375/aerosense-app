@@ -50,44 +50,52 @@ class MetricTile extends StatelessWidget {
             children: [
               Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
               const SizedBox(width: 8),
-              Text(
-                label,
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  fontVariations: [const FontVariation('wght', 500)],
-                ),
-              ),
-              const Spacer(),
-              _TierBadge(tier: metricTier, tierColor: tierColor),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // Value row: large number + unit
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                valueText,
-                style: theme.textTheme.displaySmall?.copyWith(
-                  fontSize: 44,
-                  height: 48 / 44,
-                  color: colorScheme.onSurface,
-                  fontVariations: [const FontVariation('wght', 600)],
-                  fontFeatures: [const FontFeature.tabularFigures()],
-                ),
-              ),
-              if (unit.isNotEmpty) ...[
-                const SizedBox(width: 4),
-                Text(
-                  unit,
-                  style: theme.textTheme.titleMedium?.copyWith(
+              Expanded(
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelLarge?.copyWith(
                     color: colorScheme.onSurfaceVariant,
                     fontVariations: [const FontVariation('wght', 500)],
                   ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 8),
+              _TierBadge(tier: metricTier, tierColor: tierColor),
             ],
+          ),
+          const SizedBox(height: 12),
+          // Value row: large number + unit (scales down on high text zoom or narrow tiles)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(
+                  valueText,
+                  style: theme.textTheme.displaySmall?.copyWith(
+                    fontSize: 44,
+                    height: 48 / 44,
+                    color: colorScheme.onSurface,
+                    fontVariations: [const FontVariation('wght', 600)],
+                    fontFeatures: [const FontFeature.tabularFigures()],
+                  ),
+                ),
+                if (unit.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    unit,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontVariations: [const FontVariation('wght', 500)],
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
           if (caption != null) ...[
             const SizedBox(height: 4),

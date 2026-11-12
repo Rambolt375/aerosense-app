@@ -109,12 +109,22 @@ class ForecastScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Text(title, style: textTheme.titleMedium),
-                  const Spacer(),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(title, style: textTheme.titleMedium),
+                      ),
+                    ],
+                  ),
                   _buildMetricBadge(context, status, consecutive),
                 ],
               ),
@@ -141,12 +151,20 @@ class ForecastScreen extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 6,
               children: [
-                Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Text(title, style: textTheme.titleMedium),
-                const Spacer(),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(icon, size: 20, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text(title, style: textTheme.titleMedium)),
+                  ],
+                ),
                 _buildMetricBadge(context, status, consecutive),
               ],
             ),
@@ -192,7 +210,11 @@ class ForecastScreen extends ConsumerWidget {
                 color: appColors.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
                 children: [
                   Text(
                     'ŷ = A·sin(ωt+φ) + C',
@@ -201,7 +223,6 @@ class ForecastScreen extends ConsumerWidget {
                       fontStyle: FontStyle.italic,
                     ),
                   ),
-                  const Spacer(),
                   Text(
                     'Variance explained (R²): ${(model.rSquared * 100).toStringAsFixed(1)}%',
                     style: textTheme.labelSmall?.copyWith(
@@ -288,9 +309,15 @@ class ForecastScreen extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            value,
-            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),

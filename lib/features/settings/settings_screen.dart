@@ -78,7 +78,7 @@ class SettingsScreen extends ConsumerWidget {
                             bottom: 12.0,
                           ),
                           child: Text(
-                            'Spikes air quality into Danger tier (> 2000), activating the auto-fan safety override, then recovers.',
+                            'Spikes air quality into Danger tier (>= ${Thresholds.airQualityDangerMin.toInt()}), activating the auto-fan safety override, then recovers.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),

@@ -198,18 +198,22 @@
   - Derived all Demo Mode baselines and scenarios dynamically from `Thresholds.current`: normal diurnal baseline stays strictly Safe under any active preset; heat spike ramps through Caution into Danger and recovers; history anomalies cross Caution and Danger on temperature. Verified with `test/data/demo_thresholds_test.dart`.
   - Replaced amber "Locked out" pill in `ForecastStatusCard` with neutral "Device offline" pill when device is offline, updating status explanation copy to reserve safety lockout wording for true operational lockouts.
   - Test suite expanded to 261 tests, static analysis clean (0 issues).
-- 2026-11-12: Phase 6a (Timed manual ventilation & firmware alignment) implemented:
-  - Replaced `Switch` in `FanCard` with a timed action button (`FilledButton.tonal`). Idle label reflects known runtime: "Ventilate for N min" (when `/config/manualDurationSec` is present) or fallback "Ventilate" with helper "The fan runs for a fixed time set by the device."
-  - Extracted UI state derivation into a single pure function `deriveFanCardUiState` in `lib/features/dashboard/fan_card_state.dart` with 19 table-driven unit tests, covering `appOffline`, `deviceOffline`, `danger`, `safe`, `dangerLatched`, `waitingForDevice`, `running`, `pending`, and `idle`.
-  - Replaced `setManualToggle(bool)` with `requestManualVentilation()` across repositories and controllers. The app only ever writes `true` to `/system/manualToggle`. Verified via unit test that no code path writes `false`.
-  - Updated `FakeSystemRepository` with confirmed firmware behavior: emits bare keywords (`SAFE`, `CAUTION`, `DANGER`), rejects ventilation requests outside Caution, ignores `false` writes defensively, auto-resets after 5 minutes (`AppConfig.defaultManualDuration`), and cancels manual runs on Danger with fan latching ON through Caution until Safe. Publishes `manualEndsAt` (epoch seconds UTC) and `/config/manualDurationSec` as planned firmware fields.
-  - Danger latch evaluation (`evaluateDangerLatch`): latch helper ("Fan stays on until the room is safe.") appears only if held $\ge 6$ s in unlatched Caution or Danger was observed since last Safe, preventing text flash on fan spin-down after a normal run.
-  - Confirmation timeout: `ManualVentilationNotifier` monitors stream after write; if stream does not echo `manualToggle == true` within 5 s, or reverts to `false` in < 5 s, displays snackbar: "The device didn't start the fan. The room may no longer be in the stuffy range." No auto-retry.
-  - Overrun and clamping: if `manualToggle` remains `true` > 30 s after scheduled end time, displays "Waiting for the device..." and stays disabled. Clamps `manualEndsAt` if remaining < 0 or > 2× duration, falling back to "Fan running" without countdown.
-  - Isolated 1 s ticker: countdown text lives in a standalone `VentilationCountdownText` widget, so per-second countdown ticks do not trigger parent widget rebuilds.
-  - Accessibility: `SemanticsService.sendAnnouncement` announces "Ventilation started" and "Ventilation ended" once per state transition.
-  - Header updated to sentence case: "Fan on" / "Fan off".
-  - Test suite expanded to 293 unit and widget tests, static analysis clean (0 issues).
+- 2026-11-12: Full rules-compliance audit (AGENTS.md, DESIGN.md, TODO.md) completed:
+  - Item 1 (Colors): Replaced raw `Color(0xFF0F1B2A)` and `Colors.white` in `DemoRibbon` with `AppColors.demoRibbonBackground` and `AppColors.demoRibbonText` tokens in `lib/core/theme.dart`. Replaced `Colors.white` in `LoginScreen` with `theme.colorScheme.onPrimary`. Zero hardcoded colors outside `core/theme.dart`.
+  - Item 2 (Thresholds): Replaced hardcoded `(> 2000)` in `SettingsScreen` with `Thresholds.airQualityDangerMin.toInt()`. Clarified 1-second float tick tolerance in `MetricChartCard` with an explicit named constant (`xTickToleranceMs = 1000`). Zero hardcoded threshold values outside `core/thresholds.dart`.
+  - Item 3 (Firebase encapsulation): Verified zero `FirebaseAuth` or `FirebaseDatabase` imports/usages outside `lib/data/repositories/` and `firebase_options.dart`. UI communicates purely through repository interfaces and Riverpod providers.
+  - Item 4 (Write boundaries): Verified zero writes other than `_db.ref('system/manualToggle').set(true)`. No `.update`, `.push`, or writing to `/history` or whole `/system` node exists in production paths.
+  - Item 5 (State management): Verified `setState` is strictly confined to purely local ephemeral UI state: `_LoginScreenState` (form submission spinner & error message) and `_VentilationCountdownTextState` (isolated 1 s text countdown tick). All shared state lives in Riverpod providers.
+  - Item 6 (Strings & casing): Verified zero ALL CAPS UI text other than the required `DEMO MODE` ribbon. Centralized user-facing strings into `lib/core/strings.dart` (`AppStrings`) following DESIGN.md §8 calm plain tone; refactored fan card state, banner titles, and notifier feedback.
+  - Item 7 (Timestamp parsing): Updated `parseTimestamp` in `lib/core/time_utils.dart` to support `silent: true`, treating 0, '0', and year < 2020 as "no value" silently for `manualEndsAt` without `TODO(confirm)` debugPrint logs, keeping boot-year warnings for history timestamps only.
+  - Item 8 (Animations & Timers): Confirmed `TierBanner` pulse animation respects `MediaQuery.maybeDisableAnimationsOf(context)` and disposes its `AnimationController`. Confirmed all `Timer` instances in `VentilationCountdownText`, `DeviceStatusNotifier`, and `ManualVentilationNotifier` are properly cancelled on widget/provider disposal.
+  - Item 9 (Responsive layout & text scaling): Added comprehensive responsive test suite (`test/features/responsive_overflow_test.dart`) testing 360x640 (mobile), 768x1024 (tablet), and 1280x800 (desktop) with `textScaler: TextScaler.linear(1.3)` across Dashboard, History, Forecast, Settings, and Login screens (15 test configurations). Resolved RenderFlex overflow risks:
+    - Wrapped `MetricTile` large number and unit in `FittedBox(fit: BoxFit.scaleDown)` to prevent tile overflow under high text zoom.
+    - Wrapped `MetricChartCard` header and `ForecastStatusCard` headers in `Wrap(alignment: WrapAlignment.spaceBetween)` so legends and status pills wrap cleanly on narrow screens.
+    - Wrapped `_buildMetricPill` and `_buildOverallPill` status labels in `Flexible` to eliminate row overflow under large text scaling.
+    - Wrapped `ForecastScreen` model headers in `Wrap` with `Flexible(child: Text(title))` and formula rows in `Wrap`.
+    - Wrapped `LoginScreen` in `SingleChildScrollView` to prevent keyboard / small screen vertical overflow.
+  - Total test suite expanded to 309 unit and widget tests, static analysis clean (0 issues).
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

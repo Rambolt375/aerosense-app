@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aerosense_app/core/theme.dart';
 
 /// Persistent ribbon shown at the top of the app when Demo Mode is active.
 ///
@@ -14,17 +15,19 @@ class DemoRibbon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.paddingOf(context).top;
+    final appColors = context.appColors;
+
     return Container(
-      color: const Color(0xFF0F1B2A),
+      color: appColors.demoRibbonBackground,
       padding: EdgeInsets.only(top: topPadding),
-      child: const SizedBox(
+      child: SizedBox(
         height: 24,
         width: double.infinity,
         child: Center(
           child: Text(
             'DEMO MODE',
             style: TextStyle(
-              color: Colors.white,
+              color: appColors.demoRibbonText,
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.2,

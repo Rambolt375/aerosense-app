@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/config.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
@@ -135,7 +136,7 @@ class ManualVentilationNotifier extends Notifier<ManualVentilationState> {
         if (_runConfirmedAt != null &&
             _clock().difference(_runConfirmedAt!) <
                 const Duration(seconds: 5)) {
-          _errorMessage = "The device didn't start the fan. The room may no longer be in the stuffy range.";
+          _errorMessage = AppStrings.fanErrorStartFailed;
         }
         _runConfirmedAt = null;
         _observedRunStartedAt = null;
@@ -174,7 +175,7 @@ class ManualVentilationNotifier extends Notifier<ManualVentilationState> {
     _timeoutTimer = Timer(AppConfig.manualToggleConfirmTimeout, () {
       if (_isPending) {
         _isPending = false;
-        _errorMessage = "The device didn't start the fan. The room may no longer be in the stuffy range.";
+        _errorMessage = AppStrings.fanErrorStartFailed;
         state = _buildState();
       }
     });
@@ -184,7 +185,7 @@ class ManualVentilationNotifier extends Notifier<ManualVentilationState> {
     } catch (e) {
       _timeoutTimer?.cancel();
       _isPending = false;
-      _errorMessage = 'Failed to start ventilation. Check connection.';
+      _errorMessage = AppStrings.fanErrorConnection;
       state = _buildState();
       rethrow;
     }

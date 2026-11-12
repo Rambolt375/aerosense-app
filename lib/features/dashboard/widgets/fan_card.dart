@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
@@ -108,14 +109,14 @@ class _FanCardState extends ConsumerState<FanCard> {
                 uiState == FanCardUiState.running) {
               SemanticsService.sendAnnouncement(
                 view,
-                'Ventilation started',
+                AppStrings.semanticsVentilationStarted,
                 TextDirection.ltr,
               );
             } else if (_previousUiState == FanCardUiState.running &&
                 uiState != FanCardUiState.running) {
               SemanticsService.sendAnnouncement(
                 view,
-                'Ventilation ended',
+                AppStrings.semanticsVentilationEnded,
                 TextDirection.ltr,
               );
             }
@@ -191,7 +192,7 @@ class _FanCardContent extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                state.fanOn ? 'Fan on' : 'Fan off',
+                state.fanOn ? AppStrings.fanOn : AppStrings.fanOff,
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: colorScheme.onSurface,
                   fontVariations: [const FontVariation('wght', 600)],
@@ -289,7 +290,13 @@ class _VentilationCountdownTextState extends State<VentilationCountdownText> {
     _timer = null;
     if (widget.endsAt != null) {
       _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-        if (mounted) setState(() {});
+        if (!mounted) return;
+        final now = DateTime.now();
+        if (widget.endsAt!.difference(now) <= Duration.zero) {
+          _timer?.cancel();
+          _timer = null;
+        }
+        setState(() {});
       });
     }
   }
@@ -309,10 +316,10 @@ class _VentilationCountdownTextState extends State<VentilationCountdownText> {
     final now = DateTime.now();
     final remaining = widget.endsAt!.difference(now);
     if (remaining <= Duration.zero) {
-      return const Text('Fan running, 0:00 left');
+      return Text(AppStrings.fanRunningWithCountdown('0:00'));
     }
 
-    return Text('Fan running, ${formatCountdown(remaining)} left');
+    return Text(AppStrings.fanRunningWithCountdown(formatCountdown(remaining)));
   }
 }
 

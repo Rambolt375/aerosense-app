@@ -100,18 +100,27 @@ class TierColorPair {
 /// Extra theme tokens from DESIGN.md not present in standard M3 ColorScheme.
 @immutable
 class AppColors extends ThemeExtension<AppColors> {
-  const AppColors({required this.surfaceAlt, required this.textTertiary});
+  const AppColors({
+    required this.surfaceAlt,
+    required this.textTertiary,
+    required this.demoRibbonBackground,
+    required this.demoRibbonText,
+  });
 
-  /// Light theme additional tokens per DESIGN.md §2.
+  /// Light theme additional tokens per DESIGN.md §2 & §5.
   static const light = AppColors(
     surfaceAlt: Color(0xFFEDF1F5),
     textTertiary: Color(0xFF5E6D7C),
+    demoRibbonBackground: Color(0xFF0F1B2A),
+    demoRibbonText: Color(0xFFFFFFFF),
   );
 
-  /// Dark theme additional tokens per DESIGN.md §2.
+  /// Dark theme additional tokens per DESIGN.md §2 & §5.
   static const dark = AppColors(
     surfaceAlt: Color(0xFF1A2836),
     textTertiary: Color(0xFF6F8296),
+    demoRibbonBackground: Color(0xFF0F1B2A),
+    demoRibbonText: Color(0xFFFFFFFF),
   );
 
   /// Inputs, chips, chart plot area background.
@@ -120,11 +129,24 @@ class AppColors extends ThemeExtension<AppColors> {
   /// Hints, axis labels.
   final Color textTertiary;
 
+  /// Demo mode ribbon background color (#0F1B2A).
+  final Color demoRibbonBackground;
+
+  /// Demo mode ribbon text color (white).
+  final Color demoRibbonText;
+
   @override
-  AppColors copyWith({Color? surfaceAlt, Color? textTertiary}) {
+  AppColors copyWith({
+    Color? surfaceAlt,
+    Color? textTertiary,
+    Color? demoRibbonBackground,
+    Color? demoRibbonText,
+  }) {
     return AppColors(
       surfaceAlt: surfaceAlt ?? this.surfaceAlt,
       textTertiary: textTertiary ?? this.textTertiary,
+      demoRibbonBackground: demoRibbonBackground ?? this.demoRibbonBackground,
+      demoRibbonText: demoRibbonText ?? this.demoRibbonText,
     );
   }
 
@@ -134,6 +156,12 @@ class AppColors extends ThemeExtension<AppColors> {
     return AppColors(
       surfaceAlt: Color.lerp(surfaceAlt, other.surfaceAlt, t)!,
       textTertiary: Color.lerp(textTertiary, other.textTertiary, t)!,
+      demoRibbonBackground: Color.lerp(
+        demoRibbonBackground,
+        other.demoRibbonBackground,
+        t,
+      )!,
+      demoRibbonText: Color.lerp(demoRibbonText, other.demoRibbonText, t)!,
     );
   }
 }

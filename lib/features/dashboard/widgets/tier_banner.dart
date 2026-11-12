@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 
@@ -135,11 +136,13 @@ class _TierBannerState extends State<TierBanner>
                 child: Icon(icon, size: 24, color: solidColor),
               ),
               const SizedBox(width: 12),
-              Text(
-                title,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: solidColor,
-                  fontVariations: [const FontVariation('wght', 600)],
+              Expanded(
+                child: Text(
+                  title,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: solidColor,
+                    fontVariations: [const FontVariation('wght', 600)],
+                  ),
                 ),
               ),
             ],
@@ -161,11 +164,11 @@ class _TierBannerState extends State<TierBanner>
   (IconData, String) _tierContent(Tier tier) {
     switch (tier) {
       case Tier.safe:
-        return (Icons.check_circle_outlined, 'Room is safe');
+        return (Icons.check_circle_outlined, AppStrings.tierSafeTitle);
       case Tier.medium:
-        return (Icons.warning_amber_outlined, 'Room is getting stuffy');
+        return (Icons.warning_amber_outlined, AppStrings.tierMediumTitle);
       case Tier.danger:
-        return (Icons.error_outline, 'Hazardous air detected');
+        return (Icons.error_outline, AppStrings.tierDangerTitle);
     }
   }
 }

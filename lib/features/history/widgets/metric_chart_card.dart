@@ -82,17 +82,29 @@ class MetricChartCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header: Title, Unit, and optional Caption
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 6,
                 children: [
-                  Text(title, style: textTheme.titleMedium),
-                  const SizedBox(width: 6),
-                  Text(
-                    '($unit)',
-                    style: textTheme.labelSmall?.copyWith(color: textSecondary),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Text(title, style: textTheme.titleMedium),
+                      if (unit.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '($unit)',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: textSecondary,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                  const Spacer(),
                   // Legend row (dot + label for Safe, Medium, Danger)
                   _buildLegendRow(context, tierColors),
                 ],
@@ -362,8 +374,10 @@ class MetricChartCard extends StatelessWidget {
             interval: xAxisConfig.interval,
             getTitlesWidget: (value, meta) {
               final vInt = value.toInt();
+              // 1000 ms (1 second) tolerance when matching floating-point X-axis tick timestamps
+              const xTickToleranceMs = 1000;
               final isVisible = visibleXTicks.any(
-                (t) => (t - vInt).abs() <= 1000,
+                (t) => (t - vInt).abs() <= xTickToleranceMs,
               );
               if (!isVisible) {
                 return const SizedBox.shrink();

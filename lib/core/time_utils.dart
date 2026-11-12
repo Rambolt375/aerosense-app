@@ -9,35 +9,41 @@ import 'package:flutter/foundation.dart';
 ///   - Any value that resolves to year < 2020 → treated as millis() since
 ///     boot and returns null; the caller should fall back to push-key ordering.
 ///
+/// If [silent] is true, `0`, `'0'`, and values resolving to year < 2020 are treated
+/// as "no value" silently without emitting `// TODO(confirm)` logs. Used for
+/// `/system/manualEndsAt` where 0 or null represents inactive manual ventilation.
 /// Returns null for null input, unrecognised types, unparseable strings,
 /// and apparent boot-millisecond values.
 // TODO(confirm): timestamp format in /history — confirm once real data exists.
-DateTime? parseTimestamp(dynamic value) {
+DateTime? parseTimestamp(dynamic value, {bool silent = false}) {
   if (value == null) return null;
+  if (silent && (value == 0 || value == '0')) return null;
 
   if (value is String) {
     final dt = DateTime.tryParse(value);
     if (dt == null) return null;
-    return _guardYear(dt.toLocal());
+    return _guardYear(dt.toLocal(), silent: silent);
   }
 
   if (value is num) {
     final ms = value > 1e12 ? value.toInt() : value.toInt() * 1000;
     final dt = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).toLocal();
-    return _guardYear(dt);
+    return _guardYear(dt, silent: silent);
   }
 
   return null;
 }
 
 /// Returns null if [dt] predates 2020 — a heuristic for millis()-since-boot.
-DateTime? _guardYear(DateTime dt) {
+DateTime? _guardYear(DateTime dt, {bool silent = false}) {
   if (dt.year < 2020) {
-    debugPrint(
-      '// TODO(confirm) timestamp-format: parsed DateTime year=${dt.year} '
-      'looks like millis-since-boot, not wall-clock time. '
-      'Returning null; chart will fall back to push-key ordering.',
-    );
+    if (!silent) {
+      debugPrint(
+        '// TODO(confirm) timestamp-format: parsed DateTime year=${dt.year} '
+        'looks like millis-since-boot, not wall-clock time. '
+        'Returning null; chart will fall back to push-key ordering.',
+      );
+    }
     return null;
   }
   return dt;
