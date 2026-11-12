@@ -1,1 +1,36 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"aerosense-502de","appId":"1:803962149882:android:7e19d606063534d332a243","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"aerosense-502de","configurations":{"android":"1:803962149882:android:7e19d606063534d332a243","web":"1:803962149882:web:085d2ac5e2046ec232a243"}}}}}}
+{
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "aerosense-502de",
+          "appId": "1:803962149882:android:7e19d606063534d332a243",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "aerosense-502de",
+          "configurations": {
+            "android": "1:803962149882:android:7e19d606063534d332a243",
+            "web": "1:803962149882:web:085d2ac5e2046ec232a243"
+          }
+        }
+      }
+    }
+  }
+}

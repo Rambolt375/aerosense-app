@@ -275,7 +275,7 @@ void main() {
       );
 
       // Initially demo mode is false -> scenario card not present
-      expect(find.text('Simulation Scenarios'), findsNothing);
+      expect(find.text('Run the demo'), findsNothing);
       expect(find.text('Simulate Kitchen Smoke'), findsNothing);
 
       // Toggle switch to true
@@ -287,7 +287,7 @@ void main() {
       expect(container.read(demoModeProvider), isTrue);
 
       // Now scenario buttons are visible
-      expect(find.text('Simulation Scenarios'), findsOneWidget);
+      expect(find.text('Run the demo'), findsOneWidget);
       expect(find.text('Simulate Kitchen Smoke'), findsOneWidget);
       expect(find.text('Simulate Heat Spike'), findsOneWidget);
       expect(find.text('Reset to Baseline'), findsOneWidget);
@@ -309,6 +309,8 @@ void main() {
 
       // Reset to baseline
       final resetBtn = find.text('Reset to Baseline');
+      await tester.ensureVisible(resetBtn);
+      await tester.pumpAndSettle();
       await tester.tap(resetBtn);
       await tester.pump();
 

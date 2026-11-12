@@ -4,7 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:aerosense_app/core/router_refresh.dart';
 import 'package:aerosense_app/core/theme.dart';
+import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/notices/widgets/in_app_notice_banner.dart';
 import 'package:aerosense_app/features/auth/debug_screen.dart';
 import 'package:aerosense_app/features/auth/login_screen.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
@@ -133,13 +135,14 @@ class AeroSenseApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     return MaterialApp.router(
       title: 'AeroSense',
       debugShowCheckedModeBanner: false,
       theme: AeroSenseTheme.light,
       darkTheme: AeroSenseTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: themeMode,
       routerConfig: router,
       builder: (context, child) {
         final isDemo = ref.watch(demoModeProvider);
@@ -184,6 +187,14 @@ class AppShellScaffold extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 900;
+    final showNoticeBanner = navigationShell.currentIndex != 0;
+
+    final content = Column(
+      children: [
+        if (showNoticeBanner) const InAppNoticeBanner(),
+        Expanded(child: navigationShell),
+      ],
+    );
 
     if (isDesktop) {
       return Scaffold(
@@ -217,14 +228,14 @@ class AppShellScaffold extends StatelessWidget {
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
-            Expanded(child: navigationShell),
+            Expanded(child: content),
           ],
         ),
       );
     }
 
     return Scaffold(
-      body: navigationShell,
+      body: content,
       bottomNavigationBar: NavigationBar(
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _onDestinationSelected,

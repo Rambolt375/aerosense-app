@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 6a (✅ COMPLETE — timed manual ventilation; awaiting user review before Phase 6b)
+> **Current phase:** 6b (✅ COMPLETE — Settings, In-App Notices, Release Builds, Documentation; awaiting final review)
 
 ## Blockers / open questions (owner: human)
 
@@ -124,11 +124,16 @@
 - [x] All 293 tests passing, `flutter analyze` clean (0 issues).
 
 ## Phase 6b: Polish (P2)
-- [ ] Preventive ventilation suggestion (FR-7), with the "app must be open" limitation shown
-- [ ] In-app Medium/Danger notifications, debounced
-- [ ] Settings screen
-- [ ] README (setup, APK build, Firebase Hosting deploy)
-- [ ] `flutter build apk --release` and `flutter build web` succeed
+- [ ] Pre-ventilation / predictive fan start (FR-7): postponed pending firmware design
+- [x] In-app Medium/Danger & device connection notices: debounced (Danger 2 min cooldown, Caution/Offline/Online 10 min), auto-clears on return to Safe, dismiss button with tooltip, `liveRegion` semantics, hidden on Dashboard tab
+- [x] Settings screen: appearance/theme switcher, Demo Mode switch & scenario triggers, read-only safety thresholds & forecast parameters interpolated from `Thresholds.current` and `AppConfig`, version display, sign-out confirmation dialog
+- [x] Theme persistence: Option A using `shared_preferences`, loaded before `runApp` to eliminate theme flashing; Demo Mode strictly excluded from persistence
+- [x] Android release configuration: `android.permission.INTERNET` added and application label set to "AeroSense" in `AndroidManifest.xml`
+- [x] Web configuration & hosting: `firebase.json` hosting target with SPA rewrites to `/index.html`; `--no-web-resources-cdn` local renderer bundling for demo web build
+- [x] Firebase RTDB security rules updated in `database.rules.json` (do not deploy)
+- [x] README documentation: environment versions, setup, demo day checklist, 48 h uptime requirement for forecasting, Inter font guide, no secrets
+- [x] Release builds succeeded: Android APK (standard & demo) and Web (standard & demo)
+- [x] All 323 tests passing, `flutter analyze` clean (0 issues)
 
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).
@@ -214,6 +219,31 @@
     - Wrapped `ForecastScreen` model headers in `Wrap` with `Flexible(child: Text(title))` and formula rows in `Wrap`.
     - Wrapped `LoginScreen` in `SingleChildScrollView` to prevent keyboard / small screen vertical overflow.
   - Total test suite expanded to 309 unit and widget tests, static analysis clean (0 issues).
+- 2026-11-12: Phase 6b (Settings, In-App Notices, Theme Persistence, Builds, and Documentation) implemented:
+  - Added `shared_preferences: ^2.5.6` via `flutter pub add`. Persisted strictly `ThemeMode` (Option A); Demo Mode is strictly non-persistent. Preferences are loaded prior to `runApp` in `main.dart` and injected via `initialThemeModeProvider` to eliminate theme flash on startup. Unit tests use `SharedPreferences.setMockInitialValues`.
+  - Built `InAppNoticeNotifier` and `InAppNoticeBanner`:
+    - First value after app launch is ignored to prevent noisy banner flashes.
+    - Danger notice cooldown: 2 minutes; Caution / Device Offline / Device Online cooldown: 10 minutes.
+    - Caution and Danger notices auto-clear immediately when room returns to Safe tier; Danger is never dismissed by time alone.
+    - Dismissible via `Icons.close` with tooltip 'Dismiss notice'.
+    - Accessibility supported with `Semantics(liveRegion: true)`. Banner hidden on Dashboard tab (active only on History, Forecast, and Settings).
+  - Built `SettingsScreen`:
+    - Appearance: 3-way `SegmentedButton` (System / Light / Dark) wired to `themeModeProvider`.
+    - Safety Thresholds: strictly read-only values interpolated dynamically from `Thresholds.current` (no literals); labelled "Source: built-in (firmware defaults)" or "Demo preset" with a `// TODO(confirm)` hook for firmware schema definition. Humidity has visible caveat: "Not yet confirmed in the firmware".
+    - Forecast Parameters: read-only values interpolated from `AppConfig` (multiplier, span, bins, tolerances, hysteresis, $R^2$).
+    - Demo Controls: switch + scenario triggers (Kitchen Smoke, Heat Spike, Sensor Unplugged with "stops reporting" description, and Reset to Baseline).
+    - Session & App Info: `AppConfig.appVersion` (`1.0.0+1`), database region, and sign-out confirmation dialog.
+  - Added `test/core/app_version_test.dart` asserting that `AppConfig.appVersion` matches `pubspec.yaml`.
+  - Updated `android/app/src/main/AndroidManifest.xml` with `android.permission.INTERNET` and `android:label="AeroSense"`.
+  - Updated `firebase.json` with web hosting configuration (public `build/web` and SPA rewrites to `/index.html`).
+  - Updated `database.rules.json` to exact user-specified security rules requiring `auth != null && newData.val() === true` on `manualToggle`.
+  - Authored comprehensive `README.md` covering setup, runtime modes, testing, release builds, Firebase hosting & auth domains, demo day checklist, 48 h uptime forecast requirement, data contract, and Inter font steps.
+  - Built production and demo release artifacts:
+    - Standard APK: `build/app/outputs/flutter-apk/app-release.apk` (54 MB)
+    - Demo APK: `build/app/outputs/flutter-apk/aerosense-demo-release.apk` (54 MB)
+    - Standard Web: `build/web` (41 MB)
+    - Demo Web: `build/web-demo` (41 MB, built with `--no-web-resources-cdn` to bundle CanvasKit and static web resources locally)
+  - Ran `dart format .`, `flutter analyze` (0 issues), and `flutter test` (all 323 tests passed).
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.
