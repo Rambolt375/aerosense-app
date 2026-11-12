@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/config.dart';
+import 'package:aerosense_app/core/sensor_validation.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
@@ -32,7 +33,8 @@ final diurnalFitProvider = Provider<DiurnalFitState>((ref) {
   final historyAsync = ref.watch(historyNotifierProvider);
   final isDemo = ref.watch(demoModeProvider);
 
-  final records = historyAsync.value?.allRecords ?? [];
+  final rawRecords = historyAsync.value?.allRecords ?? [];
+  final records = validateHistoryRecords(rawRecords);
 
   final tempResult = fitRobustDiurnal(
     records: records,

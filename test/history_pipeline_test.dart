@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/core/sensor_validation.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/repositories/fake_history_repository.dart';
@@ -400,6 +401,75 @@ void main() {
 
       expect(bounds.minY, greaterThanOrEqualTo(0.0));
       expect(bounds.maxY, lessThanOrEqualTo(100.0));
+    });
+
+    test('empty spots still keep threshold lines visible within bounds', () {
+      final bounds = calculateYAxisBounds(
+        spots: const [],
+        safeMax: Thresholds.tempSafeMax, // 33.5
+        dangerMin: Thresholds.tempDangerMin, // 36.0
+        padding: 2.0,
+        interval: 5.0,
+      );
+
+      expect(bounds.minY, lessThanOrEqualTo(Thresholds.tempSafeMax));
+      expect(bounds.maxY, greaterThanOrEqualTo(Thresholds.tempDangerMin));
+    });
+
+    test('pipeline validates sensor failures so chart y-range ignores 0/0 unplugged data', () {
+      final badRecords = [
+        HistoryRecord(
+          pushKey: '-Nx01',
+          timestamp: DateTime(2026, 11, 12, 12, 0),
+          temperature: 25.0,
+          humidity: 50.0,
+        ),
+        HistoryRecord(
+          pushKey: '-Nx02',
+          timestamp: DateTime(2026, 11, 12, 12, 10),
+          temperature: 0.0, // Unplugged DHT22 artifact
+          humidity: 0.0,
+        ),
+        HistoryRecord(
+          pushKey: '-Nx03',
+          timestamp: DateTime(2026, 11, 12, 12, 20),
+          temperature: 999.0, // Electrical spike
+          humidity: 52.0,
+        ),
+        HistoryRecord(
+          pushKey: '-Nx04',
+          timestamp: DateTime(2026, 11, 12, 12, 30),
+          temperature: 26.0,
+          humidity: 51.0,
+        ),
+      ];
+
+      final validatedRecords = validateHistoryRecords(badRecords);
+      final spots = segmentToSpots(validatedRecords, (r) => r.temperature);
+
+      expect(
+        spots.length,
+        2,
+        reason: 'Only the two valid records (25.0 and 26.0) produce spots',
+      );
+      expect(spots.map((s) => s.y), [25.0, 26.0]);
+
+      final bounds = calculateYAxisBounds(
+        spots: spots,
+        safeMax: Thresholds.tempSafeMax, // 33.5
+        dangerMin: Thresholds.tempDangerMin, // 36.0
+        padding: 2.0,
+        interval: 5.0,
+      );
+
+      // minY = min(25.0, 33.5) - 2.0 = 23.0 -> floor to 5 = 20.0
+      // If 0.0 was included, minY would be 0.0 - 2.0 -> -5.0!
+      expect(bounds.minY, 20.0);
+      // maxY = max(26.0, 36.0) + 2.0 = 38.0 -> ceil to 5 = 40.0
+      // If 999.0 was included, maxY would be 1005.0!
+      expect(bounds.maxY, 40.0);
+      expect(bounds.minY, lessThanOrEqualTo(Thresholds.tempSafeMax));
+      expect(bounds.maxY, greaterThanOrEqualTo(Thresholds.tempDangerMin));
     });
   });
 

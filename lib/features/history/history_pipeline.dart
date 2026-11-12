@@ -423,7 +423,12 @@ YAxisBounds calculateYAxisBounds({
   double? absoluteMax,
   required double interval,
 }) {
-  final valid = spots.where((s) => s != FlSpot.nullSpot && !s.y.isNaN).toList();
+  final valid = spots.where((s) {
+    if (s == FlSpot.nullSpot || !s.y.isFinite) return false;
+    if (absoluteMin != null && s.y < absoluteMin) return false;
+    if (absoluteMax != null && s.y > absoluteMax) return false;
+    return true;
+  }).toList();
   final double dataMin;
   final double dataMax;
 

@@ -1,3 +1,4 @@
+import 'package:aerosense_app/core/sensor_validation.dart';
 import 'package:aerosense_app/core/time_utils.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 
@@ -25,6 +26,7 @@ class SystemState {
     this.manualToggle = false,
     this.statusMessage = '',
     this.tier = Tier.safe,
+    this.manualEndsAt,
   });
 
   /// Returns an empty SystemState used before the first RTDB event arrives.
@@ -35,7 +37,8 @@ class SystemState {
       fanOn = false,
       manualToggle = false,
       statusMessage = '',
-      tier = Tier.safe;
+      tier = Tier.safe,
+      manualEndsAt = null;
 
   /// Temperature in °C. Null on DHT22 read failure or missing field.
   final double? temperature;
@@ -61,6 +64,11 @@ class SystemState {
   /// Resolved tier (primary: statusMessage prefix; fallback: sensor values).
   final Tier tier;
 
+  /// Optional epoch timestamp indicating when the manual ventilation run ends.
+  /// Parsed defensively from /system/manualEndsAt.
+  // TODO(confirm): manualEndsAt confirmed as planned firmware field; app works with or without it.
+  final DateTime? manualEndsAt;
+
   /// Parses a [SystemState] from the raw RTDB snapshot [value].
   ///
   /// [value] should be the `DataSnapshot.value` from the `/system` node —
@@ -69,12 +77,24 @@ class SystemState {
     if (value == null || value is! Map) return const SystemState.empty();
     final json = value;
 
-    final temperature = parseSensorDouble(json['temperature']);
-    final humidity = parseSensorDouble(json['humidity']);
-    final airQuality = parseSensorDouble(json['airQuality']);
+    final rawTemp = parseSensorDouble(json['temperature']);
+    final rawHum = parseSensorDouble(json['humidity']);
+    final rawAq = parseSensorDouble(json['airQuality']);
+
+    final validated = validateSensorReadings(
+      temperature: rawTemp,
+      humidity: rawHum,
+      airQuality: rawAq,
+    );
+
+    final temperature = validated.temperature;
+    final humidity = validated.humidity;
+    final airQuality = validated.airQuality;
+
     final fanOn = _parseFanStatus(json['fanStatus']);
     final manualToggle = (json['manualToggle'] as bool?) ?? false;
     final statusMessage = (json['statusMessage'] as String?) ?? '';
+    final manualEndsAt = parseTimestamp(json['manualEndsAt']);
 
     final tier = Tier.resolve(
       statusMessage,
@@ -91,6 +111,7 @@ class SystemState {
       manualToggle: manualToggle,
       statusMessage: statusMessage,
       tier: tier,
+      manualEndsAt: manualEndsAt,
     );
   }
 }

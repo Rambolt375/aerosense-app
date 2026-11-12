@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/repositories/fake_diurnal_generator.dart';
 import 'package:aerosense_app/data/repositories/history_repository.dart';
@@ -78,17 +79,33 @@ class FakeHistoryRepository implements HistoryRepository {
       var hum = base.humidity;
       var aq = base.airQuality;
 
-      // Injected anomalies (if enabled)
+      // Injected anomalies (if enabled) derived dynamically from Thresholds.current
       if (includeAnomalies) {
         if (i >= smokeStart && i < smokeEnd) {
-          // Kitchen smoke spike into Danger tier (>= 2000)
-          final smokePeak = 2450.0 + (random.nextDouble() - 0.5) * 80.0;
+          // Kitchen smoke spike into Danger tier (>= airQualityDangerMin)
+          final smokePeak =
+              Thresholds.airQualityDangerMin +
+              450.0 +
+              (random.nextDouble() - 0.5) * 80.0;
           aq = smokePeak;
         }
 
         if (i >= heatStart && i < heatEnd) {
-          // Heat anomaly into Danger tier (>= 36.0 °C)
-          temp = 36.8 + (random.nextDouble() - 0.5) * 0.6;
+          // Heat anomaly across Caution (>= tempSafeMax) and Danger (>= tempDangerMin)
+          final step = i - heatStart;
+          if (step == 0) {
+            // Enters Caution tier
+            temp = (Thresholds.tempSafeMax + Thresholds.tempDangerMin) / 2.0;
+          } else if (step == 1) {
+            // Reaches Danger tier
+            temp = Thresholds.tempDangerMin + 1.0;
+          } else if (step == 2) {
+            // Peak in Danger tier
+            temp = Thresholds.tempDangerMin + 1.4;
+          } else {
+            // Recovers through Caution tier
+            temp = Thresholds.tempSafeMax + 0.5;
+          }
         }
       }
 

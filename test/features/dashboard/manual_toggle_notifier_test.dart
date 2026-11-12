@@ -1,17 +1,36 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/fake_system_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/data/repositories/system_repository.dart';
 import 'package:aerosense_app/features/dashboard/manual_toggle_notifier.dart';
 
+class _FailingSystemRepository implements SystemRepository {
+  @override
+  Future<void> requestManualVentilation() async {
+    throw Exception('Firebase connection error');
+  }
+
+  @override
+  Stream<SystemState> watchSystemState() => const Stream.empty();
+
+  @override
+  Stream<Object?> watchRawSystem() => const Stream.empty();
+
+  @override
+  Stream<Map<String, dynamic>?> watchConfig() => const Stream.empty();
+
+  @override
+  Stream<bool> watchConnected() => Stream.value(true);
+}
+
 void main() {
-  group('ManualToggleNotifier', () {
-    test('initial state reflects stream value', () async {
+  group('ManualVentilationNotifier', () {
+    test('initial state has isPending: false and no error', () async {
       final streamController = StreamController<SystemState>.broadcast();
       addTearDown(streamController.close);
 
@@ -23,26 +42,27 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      // Keep an active listener on the notifier
-      container.listen(manualToggleProvider, (_, _) {});
+      container.listen(manualVentilationProvider, (_, _) {});
 
       streamController.add(
         const SystemState(tier: Tier.safe, manualToggle: false, fanOn: false),
       );
       await pumpEventQueue();
 
-      final state = container.read(manualToggleProvider);
-      expect(state.value, isFalse);
+      final state = container.read(manualVentilationProvider);
       expect(state.isPending, isFalse);
+      expect(state.errorMessage, isNull);
     });
 
     test(
-      'optimistically updates value and sets isPending: true on setToggle',
+      'debounces double taps: second call while pending is ignored',
       () async {
         final streamController = StreamController<SystemState>.broadcast();
         addTearDown(streamController.close);
 
-        final fakeRepo = FakeSystemRepository();
+        final fakeRepo = FakeSystemRepository(
+          initialTemperature: 34.0, // Medium tier
+        );
         final container = ProviderContainer(
           overrides: [
             systemRepositoryProvider.overrideWithValue(fakeRepo),
@@ -51,39 +71,72 @@ void main() {
         );
         addTearDown(container.dispose);
 
-        container.listen(manualToggleProvider, (_, _) {});
-
-        // Initial stream event
-        streamController.add(const SystemState(manualToggle: false));
+        container.listen(manualVentilationProvider, (_, _) {});
+        streamController.add(
+          const SystemState(
+            tier: Tier.medium,
+            manualToggle: false,
+            fanOn: false,
+          ),
+        );
         await pumpEventQueue();
 
-        expect(container.read(manualToggleProvider).value, isFalse);
+        final notifier = container.read(manualVentilationProvider.notifier);
 
-        // Call setToggle
-        final future = container
-            .read(manualToggleProvider.notifier)
-            .setToggle(true);
+        // Start first call
+        final future1 = notifier.startVentilation();
+        expect(container.read(manualVentilationProvider).isPending, isTrue);
 
-        // Optimistic state is updated immediately
-        expect(container.read(manualToggleProvider).value, isTrue);
-        expect(container.read(manualToggleProvider).isPending, isTrue);
+        // Second call while pending is debounced and ignored
+        final future2 = notifier.startVentilation();
+        expect(container.read(manualVentilationProvider).isPending, isTrue);
 
-        await future;
-
-        // Stream confirms the value
-        streamController.add(const SystemState(manualToggle: true));
-        await pumpEventQueue();
-
-        expect(container.read(manualToggleProvider).value, isTrue);
-        expect(container.read(manualToggleProvider).isPending, isFalse);
+        await future1;
+        await future2;
       },
     );
 
-    test('ignores stream value while write is pending', () async {
+    test(
+      'write failure clears isPending, sets errorMessage, and throws',
+      () async {
+        final streamController = StreamController<SystemState>.broadcast();
+        addTearDown(streamController.close);
+
+        final container = ProviderContainer(
+          overrides: [
+            systemRepositoryProvider.overrideWithValue(
+              _FailingSystemRepository(),
+            ),
+            systemStateProvider.overrideWith((_) => streamController.stream),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.listen(manualVentilationProvider, (_, _) {});
+        streamController.add(
+          const SystemState(tier: Tier.medium, manualToggle: false),
+        );
+        await pumpEventQueue();
+
+        final notifier = container.read(manualVentilationProvider.notifier);
+
+        expect(notifier.startVentilation(), throwsException);
+        await pumpEventQueue();
+
+        final state = container.read(manualVentilationProvider);
+        expect(state.isPending, isFalse);
+        expect(
+          state.errorMessage,
+          equals('Failed to start ventilation. Check connection.'),
+        );
+      },
+    );
+
+    test('stream confirming manualToggle clears isPending and records observedRunStartedAt', () async {
       final streamController = StreamController<SystemState>.broadcast();
       addTearDown(streamController.close);
 
-      final fakeRepo = FakeSystemRepository();
+      final fakeRepo = FakeSystemRepository(initialTemperature: 34.0);
       final container = ProviderContainer(
         overrides: [
           systemRepositoryProvider.overrideWithValue(fakeRepo),
@@ -92,101 +145,118 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      container.listen(manualToggleProvider, (_, _) {});
-
-      streamController.add(const SystemState(manualToggle: false));
+      container.listen(manualVentilationProvider, (_, _) {});
+      streamController.add(
+        const SystemState(tier: Tier.medium, manualToggle: false),
+      );
       await pumpEventQueue();
 
-      await container.read(manualToggleProvider.notifier).setToggle(true);
+      final notifier = container.read(manualVentilationProvider.notifier);
+      await notifier.startVentilation();
 
-      // Stream still emits false (lag from network/firmware)
-      streamController.add(const SystemState(manualToggle: false));
+      expect(container.read(manualVentilationProvider).isPending, isTrue);
+
+      // Stream confirms!
+      streamController.add(
+        const SystemState(tier: Tier.medium, manualToggle: true, fanOn: true),
+      );
       await pumpEventQueue();
 
-      // Should keep pending value: true
-      expect(container.read(manualToggleProvider).value, isTrue);
-      expect(container.read(manualToggleProvider).isPending, isTrue);
+      final state = container.read(manualVentilationProvider);
+      expect(state.isPending, isFalse);
+      expect(state.observedRunStartedAt, isNotNull);
+      expect(state.errorMessage, isNull);
     });
 
-    test('reverts immediately if repository write throws', () async {
-      final streamController = StreamController<SystemState>.broadcast();
-      addTearDown(streamController.close);
-
-      final container = ProviderContainer(
-        overrides: [
-          systemRepositoryProvider.overrideWithValue(
-            _FailingSystemRepository(),
-          ),
-          systemStateProvider.overrideWith((_) => streamController.stream),
-        ],
-      );
-      addTearDown(container.dispose);
-
-      container.listen(manualToggleProvider, (_, _) {});
-
-      streamController.add(const SystemState(manualToggle: false));
-      await pumpEventQueue();
-
-      await expectLater(
-        container.read(manualToggleProvider.notifier).setToggle(true),
-        throwsA(isA<Exception>()),
-      );
-
-      // Reverted to stream value, isPending is false
-      expect(container.read(manualToggleProvider).value, isFalse);
-      expect(container.read(manualToggleProvider).isPending, isFalse);
-    });
-
-    testWidgets(
-      'timeout reconciles to stream value if stream does not confirm',
-      (tester) async {
+    test(
+      'dangerObservedSinceSafe turns true in Danger and resets in Safe',
+      () async {
         final streamController = StreamController<SystemState>.broadcast();
         addTearDown(streamController.close);
 
-        final fakeRepo = FakeSystemRepository();
-        late final ProviderContainer container;
-
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container = ProviderContainer(
-              overrides: [
-                systemRepositoryProvider.overrideWithValue(fakeRepo),
-                systemStateProvider.overrideWith(
-                  (_) => streamController.stream,
-                ),
-              ],
-            ),
-            child: const SizedBox.shrink(),
-          ),
+        final container = ProviderContainer(
+          overrides: [
+            systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
+            systemStateProvider.overrideWith((_) => streamController.stream),
+          ],
         );
         addTearDown(container.dispose);
 
-        container.listen(manualToggleProvider, (_, _) {});
+        container.listen(manualVentilationProvider, (_, _) {});
 
-        streamController.add(const SystemState(manualToggle: false));
-        await tester.pump();
+        // Initially safe
+        streamController.add(const SystemState(tier: Tier.safe));
+        await pumpEventQueue();
+        expect(
+          container.read(manualVentilationProvider).dangerObservedSinceSafe,
+          isFalse,
+        );
 
-        await container.read(manualToggleProvider.notifier).setToggle(true);
-        expect(container.read(manualToggleProvider).value, isTrue);
-        expect(container.read(manualToggleProvider).isPending, isTrue);
+        // Transitions to Danger
+        streamController.add(const SystemState(tier: Tier.danger));
+        await pumpEventQueue();
+        expect(
+          container.read(manualVentilationProvider).dangerObservedSinceSafe,
+          isTrue,
+        );
 
-        // Advance clock by 6 seconds (beyond 5s timeout)
-        await tester.pump(const Duration(seconds: 6));
+        // Transitions down to Medium: latch flag stays true
+        streamController.add(const SystemState(tier: Tier.medium, fanOn: true));
+        await pumpEventQueue();
+        expect(
+          container.read(manualVentilationProvider).dangerObservedSinceSafe,
+          isTrue,
+        );
 
-        // Reconciled to stream value (false)
-        expect(container.read(manualToggleProvider).value, isFalse);
-        expect(container.read(manualToggleProvider).isPending, isFalse);
+        // Returns to Safe: resets latch flag
+        streamController.add(const SystemState(tier: Tier.safe));
+        await pumpEventQueue();
+        expect(
+          container.read(manualVentilationProvider).dangerObservedSinceSafe,
+          isFalse,
+        );
+      },
+    );
 
-        fakeRepo.dispose();
-        container.dispose();
+    test(
+      'timeout (5s without confirmation) shows device did not start fan error',
+      () async {
+        final streamController = StreamController<SystemState>.broadcast();
+        addTearDown(streamController.close);
+
+        var fakeTime = DateTime(2026, 11, 12, 10, 0);
+        final notifier = ManualVentilationNotifier(clock: () => fakeTime);
+
+        final container = ProviderContainer(
+          overrides: [
+            systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
+            systemStateProvider.overrideWith((_) => streamController.stream),
+            manualVentilationProvider.overrideWith(() => notifier),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        container.listen(manualVentilationProvider, (_, _) {});
+        streamController.add(
+          const SystemState(tier: Tier.medium, manualToggle: false),
+        );
+        await pumpEventQueue();
+
+        await notifier.startVentilation();
+        expect(container.read(manualVentilationProvider).isPending, isTrue);
+
+        // Wait 5 seconds for timeout timer to fire
+        await Future<void>.delayed(const Duration(milliseconds: 5100));
+
+        final state = container.read(manualVentilationProvider);
+        expect(state.isPending, isFalse);
+        expect(
+          state.errorMessage,
+          equals(
+            "The device didn't start the fan. The room may no longer be in the stuffy range.",
+          ),
+        );
       },
     );
   });
-}
-
-class _FailingSystemRepository extends FakeSystemRepository {
-  @override
-  Future<void> setManualToggle(bool value) async {
-    throw Exception('Network error');
-  }
 }

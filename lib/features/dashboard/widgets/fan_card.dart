@@ -1,51 +1,144 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
-import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
+import 'package:aerosense_app/features/dashboard/fan_card_state.dart';
 import 'package:aerosense_app/features/dashboard/manual_toggle_notifier.dart';
 
-/// Fan status card with manual toggle switch.
+/// Fan status card with timed manual ventilation button.
 ///
-/// Toggle behavior (PRD FR-4 & Phase 5b firmware alignment):
-/// - Safe: disabled. "The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy."
-/// - Medium: enabled. Prominent decision moment.
-/// - Danger: disabled/locked, reflects fanOn state, no writes.
-/// - Offline (app or device): disabled with explanation.
-class FanCard extends ConsumerWidget {
+/// Features (Phase 6a):
+/// - Replaces the toggle switch with a "Ventilate for N min" action button.
+/// - Countdown displayed when fan is running ("Fan running, M:SS left").
+/// - Countdown text is isolated in its own widget so the 1 s timer does not rebuild FanCard.
+/// - Semantics announces ventilation start and end once, without repeating every second.
+/// - Sentence case headers: "Fan on" / "Fan off".
+class FanCard extends ConsumerStatefulWidget {
   const FanCard({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FanCard> createState() => _FanCardState();
+}
+
+class _FanCardState extends ConsumerState<FanCard> {
+  FanCardUiState? _previousUiState;
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen for error messages and display them via SnackBar
+    ref.listen<String?>(
+      manualVentilationProvider.select((s) => s.errorMessage),
+      (previous, next) {
+        if (next != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(next), duration: const Duration(seconds: 4)),
+          );
+          ref.read(manualVentilationProvider.notifier).clearErrorMessage();
+        }
+      },
+    );
+
     final systemState = ref.watch(systemStateProvider);
     final connected = ref.watch(connectedProvider);
     final deviceStatus = ref.watch(deviceStatusProvider);
-    final toggleState = ref.watch(manualToggleProvider);
+    final ventilationState = ref.watch(manualVentilationProvider);
+    final manualDuration = ref.watch(manualDurationProvider);
 
     return systemState.when(
-      data: (state) => _FanCardContent(
-        state: state,
-        appConnected: connected.asData?.value ?? false,
-        deviceOffline: deviceStatus.isOffline,
-        toggleState: toggleState,
-        onToggleChanged: (value) async {
-          try {
-            await ref.read(manualToggleProvider.notifier).setToggle(value);
-          } catch (e) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'Failed to update fan toggle. Check connection.',
-                  ),
-                  duration: Duration(seconds: 3),
-                ),
+      data: (state) {
+        final appConnected = connected.asData?.value ?? false;
+        final deviceOffline = deviceStatus.isOffline;
+        final now = DateTime.now();
+
+        // Target end time calculation & clamping
+        DateTime? targetEndsAt;
+        if (state.manualEndsAt != null) {
+          targetEndsAt = clampManualEndsAt(
+            manualEndsAt: state.manualEndsAt,
+            now: now,
+            knownDuration: manualDuration,
+          );
+        } else if (manualDuration != null &&
+            ventilationState.observedRunStartedAt != null) {
+          targetEndsAt = clampManualEndsAt(
+            manualEndsAt: ventilationState.observedRunStartedAt!.add(
+              manualDuration,
+            ),
+            now: now,
+            knownDuration: manualDuration,
+          );
+        }
+
+        final isWaitingForDevice = evaluateWaitingForDevice(
+          manualToggle: state.manualToggle,
+          endsAt: targetEndsAt,
+          now: now,
+        );
+
+        final dangerLatchActive = evaluateDangerLatch(
+          tier: state.tier,
+          fanOn: state.fanOn,
+          manualToggle: state.manualToggle,
+          dangerObservedSinceSafe: ventilationState.dangerObservedSinceSafe,
+          unlatchedCautionHeldDuration:
+              ventilationState.unlatchedCautionHeldDuration,
+        );
+
+        final uiState = deriveFanCardUiState(
+          tier: state.tier,
+          fanOn: state.fanOn,
+          manualToggle: state.manualToggle,
+          appConnected: appConnected,
+          deviceOffline: deviceOffline,
+          isPending: ventilationState.isPending,
+          dangerLatchActive: dangerLatchActive,
+          isWaitingForDevice: isWaitingForDevice,
+        );
+
+        // Accessibility semantics: announce start and end once
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          if (_previousUiState != null && _previousUiState != uiState) {
+            final view = View.of(context);
+            if (_previousUiState != FanCardUiState.running &&
+                uiState == FanCardUiState.running) {
+              SemanticsService.sendAnnouncement(
+                view,
+                'Ventilation started',
+                TextDirection.ltr,
+              );
+            } else if (_previousUiState == FanCardUiState.running &&
+                uiState != FanCardUiState.running) {
+              SemanticsService.sendAnnouncement(
+                view,
+                'Ventilation ended',
+                TextDirection.ltr,
               );
             }
           }
-        },
-      ),
+          _previousUiState = uiState;
+        });
+
+        return _FanCardContent(
+          state: state,
+          uiState: uiState,
+          manualDuration: manualDuration,
+          targetEndsAt: targetEndsAt,
+          onVentilatePressed: () async {
+            try {
+              await ref
+                  .read(manualVentilationProvider.notifier)
+                  .startVentilation();
+            } catch (_) {
+              // Error handled by notifier and snackbar listener
+            }
+          },
+        );
+      },
       loading: () => const _FanCardSkeleton(),
       error: (_, _) => const _FanCardError(),
     );
@@ -55,34 +148,28 @@ class FanCard extends ConsumerWidget {
 class _FanCardContent extends StatelessWidget {
   const _FanCardContent({
     required this.state,
-    required this.appConnected,
-    required this.deviceOffline,
-    required this.toggleState,
-    required this.onToggleChanged,
+    required this.uiState,
+    required this.manualDuration,
+    required this.targetEndsAt,
+    required this.onVentilatePressed,
   });
 
   final SystemState state;
-  final bool appConnected;
-  final bool deviceOffline;
-  final ManualToggleState toggleState;
-  final Future<void> Function(bool) onToggleChanged;
+  final FanCardUiState uiState;
+  final Duration? manualDuration;
+  final DateTime? targetEndsAt;
+  final VoidCallback onVentilatePressed;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
-    final isAppOffline = !appConnected;
-    final isDanger = state.tier == Tier.danger;
-    final isSafe = state.tier == Tier.safe;
-
-    // Toggle is strictly enabled ONLY in Medium tier, and only when online
-    final isEnabled =
-        !isAppOffline && !deviceOffline && state.tier == Tier.medium;
-
-    final switchValue = isDanger
-        ? state.fanOn
-        : (isSafe ? false : toggleState.value);
+    final isButtonEnabled = isFanButtonEnabled(uiState);
+    final helperText = fanCardHelperText(
+      state: uiState,
+      manualDuration: manualDuration,
+    );
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -94,7 +181,7 @@ class _FanCardContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: fan icon + status
+          // Header row: fan icon + sentence case status ("Fan on" / "Fan off")
           Row(
             children: [
               Icon(
@@ -104,14 +191,14 @@ class _FanCardContent extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                state.fanOn ? 'Fan On' : 'Fan Off',
+                state.fanOn ? 'Fan on' : 'Fan off',
                 style: theme.textTheme.titleMedium?.copyWith(
                   color: colorScheme.onSurface,
                   fontVariations: [const FontVariation('wght', 600)],
                 ),
               ),
               const Spacer(),
-              if (toggleState.isPending)
+              if (uiState == FanCardUiState.pending)
                 SizedBox(
                   width: 16,
                   height: 16,
@@ -123,31 +210,20 @@ class _FanCardContent extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
-          // Toggle switch
-          Row(
-            children: [
-              Text(
-                'Manual control',
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const Spacer(),
-              Switch(
-                value: switchValue,
-                onChanged: isEnabled ? (v) => onToggleChanged(v) : null,
-              ),
-            ],
+
+          // Primary action button
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonal(
+              onPressed: isButtonEnabled ? onVentilatePressed : null,
+              child: _buildButtonContent(context),
+            ),
           ),
           const SizedBox(height: 8),
+
           // Helper text
           Text(
-            _helperText(
-              state.tier,
-              toggleState.value,
-              isAppOffline,
-              deviceOffline,
-            ),
+            helperText,
             style: theme.textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
             ),
@@ -157,28 +233,86 @@ class _FanCardContent extends StatelessWidget {
     );
   }
 
-  String _helperText(
-    Tier tier,
-    bool manualToggle,
-    bool isAppOffline,
-    bool isDeviceOffline,
-  ) {
-    if (isAppOffline) {
-      return 'App is offline. Fan control unavailable.';
+  Widget _buildButtonContent(BuildContext context) {
+    if (uiState == FanCardUiState.running) {
+      return VentilationCountdownText(
+        endsAt: targetEndsAt,
+        fallbackText: 'Fan running',
+      );
     }
-    if (isDeviceOffline) {
-      return 'Device offline. Fan control unavailable.';
+
+    final label = fanButtonLabel(
+      state: uiState,
+      manualDuration: manualDuration,
+    );
+    return Text(label);
+  }
+}
+
+/// Standalone countdown widget that rebuilds ONLY itself every second.
+///
+/// Keeps the parent [FanCard] from incurring full widget rebuilds.
+class VentilationCountdownText extends StatefulWidget {
+  const VentilationCountdownText({
+    super.key,
+    required this.endsAt,
+    required this.fallbackText,
+  });
+
+  final DateTime? endsAt;
+  final String fallbackText;
+
+  @override
+  State<VentilationCountdownText> createState() =>
+      _VentilationCountdownTextState();
+}
+
+class _VentilationCountdownTextState extends State<VentilationCountdownText> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimerIfNeeded();
+  }
+
+  @override
+  void didUpdateWidget(VentilationCountdownText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.endsAt != widget.endsAt) {
+      _startTimerIfNeeded();
     }
-    switch (tier) {
-      case Tier.safe:
-        return 'The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy.';
-      case Tier.medium:
-        return manualToggle
-            ? 'Manual ventilation is on. The fan is running.'
-            : 'Room is stuffy. The fan stays off unless you turn it on.';
-      case Tier.danger:
-        return 'Safety override active. The fan is forced on and manual control is bypassed.';
+  }
+
+  void _startTimerIfNeeded() {
+    _timer?.cancel();
+    _timer = null;
+    if (widget.endsAt != null) {
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() {});
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.endsAt == null) {
+      return Text(widget.fallbackText);
+    }
+
+    final now = DateTime.now();
+    final remaining = widget.endsAt!.difference(now);
+    if (remaining <= Duration.zero) {
+      return const Text('Fan running, 0:00 left');
+    }
+
+    return Text('Fan running, ${formatCountdown(remaining)} left');
   }
 }
 
@@ -200,20 +334,20 @@ class _FanCardSkeleton extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 120,
+            width: 100,
             height: 20,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(height: 16),
+          const Spacer(),
           Container(
             width: double.infinity,
-            height: 16,
+            height: 40,
             decoration: BoxDecoration(
               color: colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(8),
             ),
           ),
         ],
@@ -233,20 +367,12 @@ class _FanCardError extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        border: Border.all(color: colorScheme.outline, width: 1),
+        border: Border.all(color: colorScheme.error.withValues(alpha: 0.5)),
         borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline, color: colorScheme.error),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Failed to load fan status.',
-              style: theme.textTheme.bodyMedium,
-            ),
-          ),
-        ],
+      child: Text(
+        'Unable to load fan status',
+        style: theme.textTheme.bodyMedium?.copyWith(color: colorScheme.error),
       ),
     );
   }

@@ -95,6 +95,23 @@ void main() {
       expect(SystemState.fromJson({'manualToggle': true}).manualToggle, isTrue);
     });
 
+    // --- manualEndsAt ---
+    test('manualEndsAt parses epoch seconds UTC defensively', () {
+      final state = SystemState.fromJson({
+        'manualEndsAt': 1762900000, // epoch seconds
+      });
+      expect(state.manualEndsAt, isNotNull);
+      expect(
+        state.manualEndsAt!.toUtc(),
+        DateTime.fromMillisecondsSinceEpoch(1762900000000, isUtc: true),
+      );
+    });
+
+    test('manualEndsAt null or absent → null', () {
+      expect(SystemState.fromJson({}).manualEndsAt, isNull);
+      expect(SystemState.fromJson({'manualEndsAt': null}).manualEndsAt, isNull);
+    });
+
     // --- unknown keys silently ignored ---
     test('extra unknown fields do not crash parsing', () {
       final state = SystemState.fromJson({
@@ -115,6 +132,32 @@ void main() {
             'DANGER: High thresholds breached! Auto-fan activated.',
       });
       expect(state.tier, Tier.danger);
+    });
+
+    // --- hardware failure & range validation ---
+    test(
+      'DHT22 unplugged 0/0 failure signature → both temp and hum are null',
+      () {
+        final state = SystemState.fromJson({
+          'temperature': 0,
+          'humidity': 0,
+          'airQuality': 850,
+        });
+        expect(state.temperature, isNull);
+        expect(state.humidity, isNull);
+        expect(state.airQuality, 850.0);
+      },
+    );
+
+    test('out-of-range sensor values are treated as null', () {
+      final state = SystemState.fromJson({
+        'temperature': 120.0,
+        'humidity': -5.0,
+        'airQuality': 5000,
+      });
+      expect(state.temperature, isNull);
+      expect(state.humidity, isNull);
+      expect(state.airQuality, isNull);
     });
   });
 }

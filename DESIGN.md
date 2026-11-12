@@ -85,7 +85,7 @@ Sentence case everywhere. No ALL CAPS except the "DEMO MODE" ribbon.
 
 - **Metric tile** (temperature, humidity, air quality): surface card, label (`label`, textSecondary) with a 20 dp outlined icon, then `metricValue` + `metricUnit`. A small tier-colored dot + word ("Safe") in the corner shows that metric's own state. Air quality shows the raw index with the caption "Relative index, uncalibrated".
 - **Tier banner:** full-width, tier container color, 1 px tier-colored border, icon + `titleMedium` title ("Room is safe" / "Room is getting stuffy" / "Hazardous air detected") and the firmware `statusMessage` below in `body`.
-- **Fan card:** fan icon (`mode_fan`), state text ON / OFF, and the manual toggle (`Switch`). In Danger the toggle is disabled with the text "Safety override active. The fan is on and manual control is bypassed."
+- **Fan card:** fan icon (`toys_outlined` / `mode_fan_off_outlined`), sentence case state header ("Fan on" / "Fan off"), full-width timed ventilation button (`FilledButton.tonal`), and context helper text. The action button is enabled ONLY in Caution idle state; disabled in Running, Safe, Danger, Danger latched, Waiting for device, and Offline states. When running, the countdown text ("Fan running, M:SS left") is isolated in its own 1 s ticker widget.
 - **Chart card:** title + range segmented control (1h / 6h / 24h / 7d) in the header. Plot area `surfaceAlt`. Horizontal threshold bands (Safe / Medium / Danger at 12%). Line 2 px `primary`, no area fill, no dots except the touched point. Grid lines `outline` at 50%. Axis text `label` in `textTertiary`. **Forecast** line is dotted (4 on / 4 off) `textSecondary`.
 - **Forecast status card:** pill showing *Learning / Active / Locked out*, one line of explanation. Locked out uses the Medium container color and the text "Predictive layer locked out. Deterministic safety logic in control."
 - **Chips:** connection (`wifi` / `wifi_off`), last update time. Height 28, `surfaceAlt`, `label` text.
@@ -106,10 +106,22 @@ Material Symbols, **outlined**, weight 400, 20-24 dp. Thermostat (temperature), 
 
 ## 8. Voice and copy
 
-Plain, calm, factual. Short sentences, no exclamation marks, no jargon, no blame.
+Plain, calm, factual. Short sentences, no exclamation marks, no jargon, no blame. Always use sentence case for headers (e.g. "Fan on" / "Fan off").
+
+**Tier status:**
 - Safe: "Room is safe"
 - Medium: "Room is getting stuffy. The fan stays off unless you turn it on."
 - Danger: "Hazardous air detected. The fan is running automatically."
+
+**Fan control:**
+- Caution idle (duration known): "Room is stuffy. The fan stays off unless you turn it on."
+- Caution idle (duration unknown): "The fan runs for a fixed time set by the device."
+- Running: "Manual ventilation is on. The fan is running."
+- Danger latch: "Fan stays on until the room is safe."
+- Safe tier: "The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy."
+- Danger tier: "Safety override active. The fan is forced on and manual control is bypassed."
+- Waiting for device: "Waiting for the device to turn off the fan."
+- Confirmation failure / rejection snackbar: "The device didn't start the fan. The room may no longer be in the stuffy range."
 
 ## 9. Do / Don't
 

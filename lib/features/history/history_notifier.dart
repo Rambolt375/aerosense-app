@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/sensor_validation.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
@@ -36,14 +37,16 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
 
     final repo = ref.watch(historyRepositoryProvider);
     final initialRecords = await repo.fetchHistory(limit: 1008);
+    final validatedInitial = validateHistoryRecords(initialRecords);
 
     // Subscribe only after the initial fetch succeeds
     final sub = repo.watchNewRecords().listen(
       (newRecord) {
         state.whenData((currentState) {
+          final validatedNew = validateHistoryRecord(newRecord);
           final updated = mergeHistoryRecords(
             currentState.allRecords,
-            newRecord,
+            validatedNew,
             maxRecords: 1008,
           );
           state = AsyncData(currentState.copyWith(allRecords: updated));
@@ -55,7 +58,7 @@ class HistoryNotifier extends AsyncNotifier<HistoryState> {
     );
     ref.onDispose(sub.cancel);
 
-    return HistoryState(allRecords: initialRecords);
+    return HistoryState(allRecords: validatedInitial);
   }
 
   /// Retries fetching history from the repository.
@@ -209,8 +212,11 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       );
     }
 
+    // Step 0: Validate sensor readings against hardware bounds and 0/0 unplugged signature
+    final validated = validateHistoryRecords(historyState.allRecords);
+
     // Step 1: Resolve timestamps (handling synthetic fallback / dropping nulls)
-    final resolved = resolveTimestamps(historyState.allRecords);
+    final resolved = resolveTimestamps(validated);
 
     // Step 2: Filter by range window
     final filtered = filterByRange(resolved.records, range);
@@ -253,6 +259,8 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       safeMax: Thresholds.tempSafeMax,
       dangerMin: Thresholds.tempDangerMin,
       padding: 2.0,
+      absoluteMin: minValidTemperature,
+      absoluteMax: maxValidTemperature,
       interval: 5.0,
     );
     final humBounds = calculateYAxisBounds(

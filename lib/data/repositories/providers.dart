@@ -99,3 +99,21 @@ final connectedProvider = StreamProvider<bool>((ref) {
 final rawSystemProvider = StreamProvider<Object?>((ref) {
   return ref.watch(systemRepositoryProvider).watchRawSystem();
 });
+
+/// Raw configuration map from `/config`.
+final configStreamProvider = StreamProvider<Map<String, dynamic>?>((ref) {
+  return ref.watch(systemRepositoryProvider).watchConfig();
+});
+
+/// Known manual ventilation duration from `/config/manualDurationSec`, or null if not present.
+// TODO(confirm): /config/manualDurationSec is planned firmware contract; app works without it.
+final manualDurationProvider = Provider<Duration?>((ref) {
+  final config = ref.watch(configStreamProvider).asData?.value;
+  if (config != null) {
+    final sec = config['manualDurationSec'];
+    if (sec is num && sec > 0) {
+      return Duration(seconds: sec.toInt());
+    }
+  }
+  return null;
+});

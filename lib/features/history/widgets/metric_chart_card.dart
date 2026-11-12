@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:aerosense_app/core/theme.dart';
+import 'package:aerosense_app/features/history/chart_label_utils.dart';
 import 'package:aerosense_app/features/history/history_pipeline.dart';
 
 /// Single metric history chart card showing temperature, humidity, or air quality.
@@ -174,6 +175,60 @@ class MetricChartCard extends StatelessWidget {
     required Color textSecondary,
     required Color textTertiary,
   }) {
+    // Label collision avoidance: threshold stacking and tick dropping
+    final thresholdLayout = resolveThresholdLabelsLayout(
+      safeMax: yBounds.safeMax,
+      dangerMin: yBounds.dangerMin,
+      minY: yBounds.minY,
+      maxY: yBounds.maxY,
+      chartHeightPx: 154.0,
+      minSpacingPx: 14.0,
+    );
+
+    final candidateYTicks = <double>[];
+    for (
+      var v = yBounds.minY;
+      v <= yBounds.maxY + 1e-4;
+      v += yBounds.interval
+    ) {
+      candidateYTicks.add(double.parse(v.toStringAsFixed(4)));
+    }
+    final visibleYTicks = filterVisibleYAxisTicks(
+      candidateTicks: candidateYTicks,
+      thresholds: [yBounds.safeMax, yBounds.dangerMin],
+      minY: yBounds.minY,
+      maxY: yBounds.maxY,
+      chartHeightPx: 154.0,
+      minSpacingPx: 14.0,
+    ).map((v) => double.parse(v.toStringAsFixed(fractionDigits))).toSet();
+
+    final candidateXTicks = <double>[xAxisConfig.minX];
+    var currX = xAxisConfig.baselineX;
+    while (currX > xAxisConfig.minX) {
+      currX -= xAxisConfig.interval;
+    }
+    while (currX <= xAxisConfig.maxX + 1.0) {
+      if (currX >= xAxisConfig.minX) {
+        candidateXTicks.add(currX);
+      }
+      currX += xAxisConfig.interval;
+    }
+    if (!candidateXTicks.contains(xAxisConfig.maxX)) {
+      candidateXTicks.add(xAxisConfig.maxX);
+    }
+
+    final selectedXTickEntries = selectXAxisTicks(
+      candidateTicks: candidateXTicks,
+      minX: xAxisConfig.minX,
+      maxX: xAxisConfig.maxX,
+      formatDate: xAxisConfig.formatDate,
+      chartWidthPx: 350.0,
+      labelWidthPx: 45.0,
+    );
+    final visibleXTicks = selectedXTickEntries
+        .map((e) => e.value.toInt())
+        .toSet();
+
     return LineChartData(
       minX: xAxisConfig.minX,
       maxX: xAxisConfig.maxX,
@@ -231,8 +286,24 @@ class MetricChartCard extends StatelessWidget {
             dashArray: [4, 4],
             label: HorizontalLineLabel(
               show: true,
-              alignment: Alignment.topRight,
-              padding: const EdgeInsets.only(right: 6, bottom: 2),
+              alignment:
+                  thresholdLayout.safeMaxConfig.verticalPosition ==
+                      ThresholdLabelVerticalPosition.aboveLine
+                  ? Alignment.topRight
+                  : Alignment.bottomRight,
+              padding: EdgeInsets.only(
+                right: thresholdLayout.safeMaxConfig.horizontalOffsetPx,
+                bottom:
+                    thresholdLayout.safeMaxConfig.verticalPosition ==
+                        ThresholdLabelVerticalPosition.aboveLine
+                    ? 2
+                    : 0,
+                top:
+                    thresholdLayout.safeMaxConfig.verticalPosition ==
+                        ThresholdLabelVerticalPosition.belowLine
+                    ? 2
+                    : 0,
+              ),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: tierColors.safe,
                 fontSize: 10,
@@ -249,8 +320,24 @@ class MetricChartCard extends StatelessWidget {
             dashArray: [4, 4],
             label: HorizontalLineLabel(
               show: true,
-              alignment: Alignment.topRight,
-              padding: const EdgeInsets.only(right: 6, bottom: 2),
+              alignment:
+                  thresholdLayout.dangerMinConfig.verticalPosition ==
+                      ThresholdLabelVerticalPosition.aboveLine
+                  ? Alignment.topRight
+                  : Alignment.bottomRight,
+              padding: EdgeInsets.only(
+                right: thresholdLayout.dangerMinConfig.horizontalOffsetPx,
+                bottom:
+                    thresholdLayout.dangerMinConfig.verticalPosition ==
+                        ThresholdLabelVerticalPosition.aboveLine
+                    ? 2
+                    : 0,
+                top:
+                    thresholdLayout.dangerMinConfig.verticalPosition ==
+                        ThresholdLabelVerticalPosition.belowLine
+                    ? 2
+                    : 0,
+              ),
               style: theme.textTheme.labelSmall?.copyWith(
                 color: tierColors.danger,
                 fontSize: 10,
@@ -274,7 +361,14 @@ class MetricChartCard extends StatelessWidget {
             reservedSize: 26,
             interval: xAxisConfig.interval,
             getTitlesWidget: (value, meta) {
-              final dt = DateTime.fromMillisecondsSinceEpoch(value.toInt());
+              final vInt = value.toInt();
+              final isVisible = visibleXTicks.any(
+                (t) => (t - vInt).abs() <= 1000,
+              );
+              if (!isVisible) {
+                return const SizedBox.shrink();
+              }
+              final dt = DateTime.fromMillisecondsSinceEpoch(vInt);
               return SideTitleWidget(
                 meta: meta,
                 fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
@@ -294,6 +388,12 @@ class MetricChartCard extends StatelessWidget {
             reservedSize: 44,
             interval: yBounds.interval,
             getTitlesWidget: (value, meta) {
+              final roundedVal = double.parse(
+                value.toStringAsFixed(fractionDigits),
+              );
+              if (!visibleYTicks.contains(roundedVal)) {
+                return const SizedBox.shrink();
+              }
               return SideTitleWidget(
                 meta: meta,
                 fitInside: SideTitleFitInsideData.fromTitleMeta(meta),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
@@ -8,25 +9,25 @@ import 'package:aerosense_app/data/repositories/fake_diurnal_generator.dart';
 import 'package:aerosense_app/data/repositories/system_repository.dart';
 
 /// Active simulation scenario for Demo Mode.
-enum DemoScenario { none, smoke, heat }
+enum DemoScenario { none, smoke, heat, sensorUnplugged }
 
 /// Fake [SystemRepository] simulating the ESP32 firmware for Demo Mode.
 ///
-/// Features:
-/// - Computes ventilation tier using [Thresholds] directly.
-/// - Fan forced ON in Danger tier (safety override).
-/// - Honors `manualToggle` in Safe and Medium tiers.
-/// - Baseline follows [generateDiurnalSample] at the current [clock] time,
-///   ensuring live demo readings match the historical training distribution
-///   and prevent persistent residual gate lockout.
-/// - Scripted smoke/heat scenarios layered on top of the diurnal baseline.
-/// - Emits exact firmware strings from PRD Table III and DATA_SAMPLE.json.
-/// - In raw snapshot: omits `manualToggle` until first write, omits `lastSeen`.
-/// - Fully testable with injected [tickInterval], [random], and [clock].
+/// Features (Phase 6a firmware alignment):
+/// - Emits only bare keywords SAFE / CAUTION / DANGER as statusMessage.
+/// - manualToggle works ONLY in CAUTION (Medium). Rejects requests in Safe or Danger.
+/// - Fixed-length run (default 5 min; persistent against false writes).
+/// - Resets manualToggle to false when the run ends.
+/// - If tier becomes DANGER, active run is cancelled, fan stays latched ON through Caution until Safe.
+/// - Publishes manualEndsAt (epoch seconds UTC) and /config/manualDurationSec as planned firmware contract.
+// TODO(confirm): manualEndsAt and /config/manualDurationSec confirmed as planned firmware fields; app works with or without them.
 class FakeSystemRepository implements SystemRepository {
   FakeSystemRepository({
     this.tickInterval = const Duration(seconds: 2),
-    this.autoResetDuration = const Duration(seconds: 90),
+    this.autoResetDuration = AppConfig.defaultManualDuration,
+    this.publishManualEndsAt = true,
+    this.publishConfig = true,
+    this.manualDurationSec = AppConfig.defaultManualDurationSec,
     math.Random? random,
     DateTime Function()? clock,
     double? initialTemperature,
@@ -65,19 +66,17 @@ class FakeSystemRepository implements SystemRepository {
     addNoise: false,
   ).airQuality;
 
-  // Real firmware status strings from PRD Table III and DATA_SAMPLE.json
-  static const String statusSafeIdle = 'System Safe';
-  static const String statusSafeManual = 'SAFE: Fan manually overridden ON.';
-  static const String statusMediumIdle =
-      'MEDIUM: Environment is stuffy. Manual toggle available.';
-  static const String statusMediumManual =
-      'MEDIUM: Fan manually turned ON by user.';
-  static const String statusDanger =
-      'DANGER: High thresholds breached! Auto-fan activated.';
+  // Real firmware status strings: bare keywords per confirmed contract
+  static const String statusSafe = 'SAFE';
+  static const String statusCaution = 'CAUTION';
+  static const String statusDanger = 'DANGER';
 
-  // --- Injected dependencies ---
+  // --- Injected dependencies & planned contract flags ---
   final Duration tickInterval;
   final Duration autoResetDuration;
+  final bool publishManualEndsAt;
+  final bool publishConfig;
+  final int manualDurationSec;
   final math.Random _random;
   final DateTime Function() _clock;
 
@@ -85,14 +84,16 @@ class FakeSystemRepository implements SystemRepository {
   DateTime Function() get clock => _clock;
 
   // --- Simulated state ---
-  late double _temperature;
-  late double _humidity;
+  double? _temperature;
+  double? _humidity;
   late double _airQuality;
-  bool? _manualToggle; // Omitted in raw JSON until first write
+  bool? _manualToggle; // Omitted in raw JSON until first request
   DateTime? _manualToggleExpiresAt;
+  DateTime? _manualEndsAt;
   Timer? _autoResetTimer;
   bool _fanOn = false;
-  String _statusMessage = statusSafeIdle;
+  bool _dangerLatched = false;
+  String _statusMessage = statusSafe;
 
   // --- Scenario state ---
   DemoScenario _scenario = DemoScenario.none;
@@ -102,6 +103,7 @@ class FakeSystemRepository implements SystemRepository {
   // --- Stream controllers ---
   late final StreamController<SystemState> _stateController;
   late final StreamController<Object?> _rawController;
+  late final StreamController<Map<String, dynamic>?> _configController;
   Timer? _tickerTimer;
   int _listenerCount = 0;
   bool _isDisposed = false;
@@ -113,11 +115,13 @@ class FakeSystemRepository implements SystemRepository {
   DemoScenario get currentScenario => _scenario;
 
   // Current values (for testing and assertions)
-  double get currentTemperature => _temperature;
-  double get currentHumidity => _humidity;
+  double? get currentTemperature => _temperature;
+  double? get currentHumidity => _humidity;
   double get currentAirQuality => _airQuality;
   bool? get rawManualToggle => _manualToggle;
+  DateTime? get currentManualEndsAt => _manualEndsAt;
   bool get currentFanOn => _fanOn;
+  bool get currentDangerLatched => _dangerLatched;
   String get currentStatusMessage => _statusMessage;
   Tier get currentTier => _tier;
 
@@ -130,6 +134,7 @@ class FakeSystemRepository implements SystemRepository {
       onListen: _onListen,
       onCancel: _onCancel,
     );
+    _configController = StreamController<Map<String, dynamic>?>.broadcast();
   }
 
   void _onListen() {
@@ -166,20 +171,35 @@ class FakeSystemRepository implements SystemRepository {
       airQuality: _airQuality,
     );
 
-    final manualActive = _manualToggle ?? false;
+    // Safety rule: if tier reaches Danger, cancel active run and latch the fan ON
+    if (_tier == Tier.danger) {
+      _dangerLatched = true;
+      _manualToggle = false;
+      _manualToggleExpiresAt = null;
+      _manualEndsAt = null;
+      _autoResetTimer?.cancel();
+      _autoResetTimer = null;
+    } else if (_tier == Tier.safe) {
+      // Danger latch clears strictly when room returns all the way to Safe
+      _dangerLatched = false;
+    }
 
     switch (_tier) {
       case Tier.danger:
-        _fanOn = true; // Firm safety rule: fan forced ON
+        _fanOn = true;
         _statusMessage = statusDanger;
         break;
       case Tier.medium:
-        _fanOn = manualActive;
-        _statusMessage = manualActive ? statusMediumManual : statusMediumIdle;
+        if (_dangerLatched) {
+          _fanOn = true;
+        } else {
+          _fanOn = _manualToggle ?? false;
+        }
+        _statusMessage = statusCaution;
         break;
       case Tier.safe:
-        _fanOn = false; // Firmware rule: fan stays OFF in Safe tier
-        _statusMessage = statusSafeIdle;
+        _fanOn = false;
+        _statusMessage = statusSafe;
         break;
     }
   }
@@ -190,21 +210,30 @@ class FakeSystemRepository implements SystemRepository {
     if (_stateController.hasListener) {
       _stateController.add(
         SystemState(
-          temperature: double.parse(_temperature.toStringAsFixed(1)),
-          humidity: double.parse(_humidity.toStringAsFixed(1)),
+          temperature: _temperature != null
+              ? double.parse(_temperature!.toStringAsFixed(1))
+              : null,
+          humidity: _humidity != null
+              ? double.parse(_humidity!.toStringAsFixed(1))
+              : null,
           airQuality: double.parse(_airQuality.toStringAsFixed(0)),
           fanOn: _fanOn,
           manualToggle: _manualToggle ?? false,
           statusMessage: _statusMessage,
           tier: _tier,
+          manualEndsAt: _manualEndsAt,
         ),
       );
     }
 
     if (_rawController.hasListener) {
       final raw = <String, dynamic>{
-        'temperature': double.parse(_temperature.toStringAsFixed(1)),
-        'humidity': double.parse(_humidity.toStringAsFixed(1)),
+        'temperature': _temperature != null
+            ? double.parse(_temperature!.toStringAsFixed(1))
+            : null,
+        'humidity': _humidity != null
+            ? double.parse(_humidity!.toStringAsFixed(1))
+            : null,
         'airQuality': _airQuality.round(),
         'fanStatus': _fanOn ? 'ON' : 'OFF',
         'statusMessage': _statusMessage,
@@ -212,9 +241,26 @@ class FakeSystemRepository implements SystemRepository {
       if (_manualToggle != null) {
         raw['manualToggle'] = _manualToggle!;
       }
+      if (_manualEndsAt != null) {
+        // Output epoch seconds UTC per planned firmware contract
+        raw['manualEndsAt'] =
+            _manualEndsAt!.toUtc().millisecondsSinceEpoch ~/ 1000;
+      }
       _rawController.add(raw);
     }
   }
+
+  void _emitConfig() {
+    if (_isDisposed) return;
+    if (publishConfig) {
+      _configController.add({'manualDurationSec': manualDurationSec});
+    } else {
+      _configController.add(null);
+    }
+  }
+
+  /// Visible for testing: manually trigger a simulation tick.
+  void onTickForTesting() => _onTick();
 
   void _onTick() {
     if (_isDisposed) return;
@@ -225,6 +271,7 @@ class FakeSystemRepository implements SystemRepository {
         !_clock().isBefore(_manualToggleExpiresAt!)) {
       _manualToggle = false;
       _manualToggleExpiresAt = null;
+      _manualEndsAt = null;
     }
 
     switch (_scenario) {
@@ -233,6 +280,9 @@ class FakeSystemRepository implements SystemRepository {
         break;
       case DemoScenario.heat:
         _stepHeatScenario();
+        break;
+      case DemoScenario.sensorUnplugged:
+        _stepSensorUnpluggedScenario();
         break;
       case DemoScenario.none:
         _stepDrift();
@@ -256,42 +306,47 @@ class FakeSystemRepository implements SystemRepository {
 
   void _stepSmokeScenario() {
     _scenarioStep++;
-    // Hold Danger tier (> 2000) for 3 ticks
+    // Hold Danger tier (>= airQualityDangerMin) for 3 ticks
     if (_scenarioStep <= 3) {
-      _airQuality = 2350.0;
+      _airQuality = Thresholds.airQualityDangerMin + 350.0;
     }
-    // Step down to Medium (1850) for 3 ticks
+    // Step down to Medium (Caution) for 3 ticks (fan remains latched ON!)
     else if (_scenarioStep <= 6) {
-      _airQuality = 1850.0;
+      _airQuality = Thresholds.airQualityCautionMin + 450.0;
     }
-    // Step down to Medium (1450) for 3 ticks (Caution is >= 1400)
+    // Step down to lower Medium for 3 ticks (fan remains latched ON!)
     else if (_scenarioStep <= 9) {
-      _airQuality = 1450.0;
+      _airQuality = Thresholds.airQualityCautionMin + 50.0;
     }
-    // Recover to diurnal baseline (< 1250)
+    // Recover to diurnal baseline (< airQualityRecovery): Safe tier clears latch!
     else {
       final sample = generateDiurnalSample(
         _clock(),
         random: _random,
         addNoise: true,
       );
-      _airQuality = sample.airQuality;
+      _airQuality = math.min(
+        sample.airQuality,
+        Thresholds.airQualityRecovery - 50.0,
+      );
       _scenario = DemoScenario.none;
       _scenarioStep = 0;
     }
   }
 
   void _stepHeatScenario() {
+    final dangerTarget = Thresholds.tempDangerMin + 0.5;
+
     if (_heatRampingUp) {
-      // Ramp +0.5 C per tick up into Danger tier (>= 36 C)
-      _temperature += 0.5;
-      if (_temperature >= 36.5) {
-        _temperature = 36.5;
+      // Ramp +0.5 C per tick up through Caution into Danger tier
+      _temperature = (_temperature ?? (Thresholds.tempSafeMax - 1.0)) + 0.5;
+      if (_temperature! >= dangerTarget) {
+        _temperature = dangerTarget;
         _heatRampingUp = false;
         _scenarioStep = 0; // Hold counter
       }
     } else if (_scenarioStep < 3) {
-      // Hold briefly at 36.5 C for 3 ticks
+      // Hold briefly at Danger target for 3 ticks
       _scenarioStep++;
     } else {
       // Recover: ramp down -0.5 C per tick to diurnal baseline
@@ -299,10 +354,12 @@ class FakeSystemRepository implements SystemRepository {
         _clock(),
         random: _random,
         addNoise: false,
-      ).temperature;
-      _temperature -= 0.5;
-      if (_temperature <= baseline) {
-        _temperature = baseline;
+      );
+      final target = baseline.temperature;
+      if (_temperature! > target) {
+        _temperature = _temperature! - 0.5;
+      } else {
+        _temperature = target;
         _scenario = DemoScenario.none;
         _scenarioStep = 0;
         _heatRampingUp = true;
@@ -310,25 +367,54 @@ class FakeSystemRepository implements SystemRepository {
     }
   }
 
+  void _stepSensorUnpluggedScenario() {
+    _scenarioStep++;
+    if (_scenarioStep <= 5) {
+      _temperature = null;
+      _humidity = null;
+    } else {
+      final sample = generateDiurnalSample(
+        _clock(),
+        random: _random,
+        addNoise: false,
+      );
+      _temperature = sample.temperature;
+      _humidity = sample.humidity;
+      _scenario = DemoScenario.none;
+      _scenarioStep = 0;
+    }
+  }
+
   // --- Simulation Triggers ---
 
   /// Simulates a kitchen-smoke event: immediate spike of air quality to Danger
-  /// (> 2000), holding briefly, then recovering through Medium to Safe.
+  /// (>= airQualityDangerMin), holding briefly, then recovering through Medium (latched) to Safe.
   void simulateKitchenSmoke() {
     _scenario = DemoScenario.smoke;
     _scenarioStep = 0;
-    _airQuality = 2350.0;
+    _airQuality = Thresholds.airQualityDangerMin + 350.0;
     _recomputeState();
     _emitCurrentState();
   }
 
-  /// Simulates a heat spike: ramps temperature +0.5 C per tick up to ~33 C,
-  /// enters Danger tier (> 32 C), holds briefly, then recovers.
+  /// Simulates a heat spike: ramps temperature +0.5 C per tick up through Caution
+  /// into Danger tier, holds briefly, then recovers through Caution (latched) to Safe.
   void simulateHeatSpike() {
     _scenario = DemoScenario.heat;
     _scenarioStep = 0;
     _heatRampingUp = true;
-    _temperature += 0.5;
+    _stepHeatScenario();
+    _recomputeState();
+    _emitCurrentState();
+  }
+
+  /// Simulates unplugging the DHT22 sensor: nulls temperature and humidity for
+  /// several ticks, rendering "--" in the UI, then cleanly recovers back to diurnal baseline.
+  void simulateSensorUnplugged() {
+    _scenario = DemoScenario.sensorUnplugged;
+    _scenarioStep = 0;
+    _temperature = null;
+    _humidity = null;
     _recomputeState();
     _emitCurrentState();
   }
@@ -338,6 +424,12 @@ class FakeSystemRepository implements SystemRepository {
     _scenario = DemoScenario.none;
     _scenarioStep = 0;
     _heatRampingUp = true;
+    _dangerLatched = false;
+    _manualToggle = false;
+    _manualEndsAt = null;
+    _manualToggleExpiresAt = null;
+    _autoResetTimer?.cancel();
+    _autoResetTimer = null;
     final sample = generateDiurnalSample(
       _clock(),
       random: _random,
@@ -354,7 +446,6 @@ class FakeSystemRepository implements SystemRepository {
 
   @override
   Stream<SystemState> watchSystemState() {
-    // Deliver initial state immediately on listen
     scheduleMicrotask(_emitCurrentState);
     return _stateController.stream;
   }
@@ -366,24 +457,50 @@ class FakeSystemRepository implements SystemRepository {
   }
 
   @override
-  Future<void> setManualToggle(bool value) async {
-    _manualToggle = value;
-    _autoResetTimer?.cancel();
-    if (value) {
-      _manualToggleExpiresAt = _clock().add(autoResetDuration);
-      _autoResetTimer = Timer(autoResetDuration, () {
-        if (_manualToggle == true && !_isDisposed) {
-          _manualToggle = false;
-          _manualToggleExpiresAt = null;
-          _recomputeState();
-          _emitCurrentState();
-        }
-      });
-    } else {
+  Stream<Map<String, dynamic>?> watchConfig() {
+    scheduleMicrotask(_emitConfig);
+    return _configController.stream;
+  }
+
+  @override
+  Future<void> requestManualVentilation() async {
+    // Firmware rejection: manualToggle works ONLY in Caution (Medium)
+    if (_tier != Tier.medium) {
+      _manualToggle = false;
       _manualToggleExpiresAt = null;
+      _manualEndsAt = null;
+      _recomputeState();
+      _emitCurrentState();
+      return;
     }
+
+    _manualToggle = true;
+    _manualToggleExpiresAt = _clock().add(autoResetDuration);
+    _manualEndsAt = publishManualEndsAt ? _manualToggleExpiresAt : null;
+    _autoResetTimer?.cancel();
+    _autoResetTimer = Timer(autoResetDuration, () {
+      if (_manualToggle == true && !_isDisposed) {
+        _manualToggle = false;
+        _manualToggleExpiresAt = null;
+        _manualEndsAt = null;
+        _recomputeState();
+        _emitCurrentState();
+      }
+    });
     _recomputeState();
     _emitCurrentState();
+  }
+
+  /// Defensive implementation for backward compatibility and tests.
+  ///
+  /// Per confirmed firmware behavior, manual run is persistent against `false`:
+  /// writing false will never cancel an active run.
+  Future<void> setManualToggle(bool value) async {
+    if (!value) {
+      // Persistent against false: writing false will NOT stop it
+      return;
+    }
+    return requestManualVentilation();
   }
 
   @override
@@ -396,5 +513,6 @@ class FakeSystemRepository implements SystemRepository {
     _autoResetTimer?.cancel();
     _stateController.close();
     _rawController.close();
+    _configController.close();
   }
 }

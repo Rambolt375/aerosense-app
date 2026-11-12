@@ -101,6 +101,43 @@ void main() {
     });
 
     testWidgets(
+      'shows neutral Device offline pill instead of amber Locked out while learning',
+      (tester) async {
+        final offlineLearningGate = ForecastGate(
+          tempModel: null, // learning
+          aqModel: null, // learning
+          isDeviceOffline: true,
+        );
+
+        await tester.pumpWidget(
+          buildTestApp(
+            overrides: [
+              forecastGateNotifierProvider.overrideWith(
+                () => _TestForecastGateNotifier(offlineLearningGate),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Device offline'), findsOneWidget);
+        expect(find.text('Locked out'), findsNothing);
+        expect(
+          find.text(
+            'Predictive layer locked out. Deterministic safety logic in control.',
+          ),
+          findsNothing,
+        );
+        expect(
+          find.text(
+            'Device offline. Learning will resume when the device reconnects.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
+
+    testWidgets(
       'displays predicted peak times when models have clear daily patterns',
       (tester) async {
         final activeGate = ForecastGate(

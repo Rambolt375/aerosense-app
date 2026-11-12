@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 5b (✅ COMPLETE — awaiting user review before Phase 6)
+> **Current phase:** 6a (✅ COMPLETE — timed manual ventilation; awaiting user review before Phase 6b)
 
 ## Blockers / open questions (owner: human)
 
@@ -100,7 +100,30 @@
 - [x] Pre-ventilation / predictive fan start postponed pending firmware design.
 - [x] All 229 unit and widget tests passing, `flutter analyze` clean (0 issues).
 
-## Phase 6: Polish (P2)
+## Real-device testing fixes (sensor resilience, chart collisions, demo thresholds, offline status)
+- [x] Sensor failure resilience: created `lib/core/sensor_validation.dart` defining hardware ranges (-40..80 °C, 0..100 % RH, 0..4095 ADC) and DHT22 unplugged 0/0 failure signature. Integrated into `SystemState.fromJson`, `HistoryNotifier`, `diurnalFitProvider`, and history pipeline; live readings render "--", forecast gate skips them, and chart Y-bounds ignore invalid data while keeping threshold lines visible.
+- [x] Demo scenario "Simulate sensor unplugged": added `DemoScenario.sensorUnplugged` in `FakeSystemRepository` and a trigger button in `SettingsScreen` that nulls temperature and humidity for 5 ticks before recovering.
+- [x] Chart label collision resolution: pure Dart `lib/features/history/chart_label_utils.dart` drops Y-axis ticks within ~14 px of thresholds or adjacent ticks; stacks/offsets threshold labels closer than ~14 px (temperature 33.5 and 36.0); dedupes identical X-axis labels and drops trailing ticks within a label width.
+- [x] Demo Mode threshold derivation: `generateDiurnalSample`, `FakeHistoryRepository` anomalies, and `FakeSystemRepository` heat/smoke spikes derive targets dynamically from `Thresholds.current`. Heat spike ramps through Caution into Danger; normal diurnal cycle stays strictly Safe across both `firmware` and `demo` presets. Verified with tests.
+- [x] Neutral "Device offline" forecast card: displays neutral surfaceContainerHighest "Device offline" pill instead of amber "Locked out" while device is offline; tailored explanation text reserves safety lockout wording for true error lockouts only.
+- [x] All 261 tests passing, `flutter analyze` clean (0 issues).
+
+## Phase 6a: Timed manual ventilation (firmware alignment)
+- [x] Pure state derivation (`deriveFanCardUiState`) covering 9 exhaustive states (`appOffline`, `deviceOffline`, `danger`, `safe`, `dangerLatched`, `waitingForDevice`, `running`, `pending`, `idle`) with 19 table-driven unit tests.
+- [x] Action button replacing switch: "Ventilate for N min" (when `/config/manualDurationSec` is known) or "Ventilate" (with fallback helper "The fan runs for a fixed time set by the device.").
+- [x] Running state with countdown ("Fan running, M:SS left") or fallback ("Fan running") when duration is unknown or opened mid-run.
+- [x] Isolated 1 s ticker widget (`VentilationCountdownText`) for countdown rendering, avoiding whole-card rebuilds.
+- [x] Write safety: replaced `setManualToggle(bool)` with `requestManualVentilation()` that only ever writes `true` to `/system/manualToggle`. Verified with unit test (`test/data/manual_ventilation_safety_test.dart`) that no code path writes `false`.
+- [x] `FakeSystemRepository` defensive ignore of `false` writes and rejection outside Caution; publishes bare keywords (`SAFE`, `CAUTION`, `DANGER`), planned `manualEndsAt` (epoch seconds UTC), and `/config/manualDurationSec` (default 300 s).
+- [x] Danger latch logic (`evaluateDangerLatch`): Danger cancels manual run and latches fan ON through Caution until Safe. Latch helper text ("Fan stays on until the room is safe.") displayed only if held $\ge 6$ s in unlatched Caution or Danger observed since last Safe (prevents flashing on normal spin-down).
+- [x] Timeout and immediate rejection handling: if stream doesn't reflect `manualToggle == true` within 5 s, or reverts to `false` in < 5 s, shows snackbar: "The device didn't start the fan. The room may no longer be in the stuffy range." No auto-retry.
+- [x] 30 s overrun handling: if `manualToggle` remains `true` > 30 s after scheduled end time, shows "Waiting for the device..." and stays disabled.
+- [x] Countdown clamping (`clampManualEndsAt`): returns null if remaining < 0 or > 2× known duration, falling back to "Fan running" without countdown.
+- [x] Accessibility: semantics announcements ("Ventilation started" / "Ventilation ended") emitted once via `SemanticsService.sendAnnouncement`.
+- [x] Sentence case headers: "Fan on" / "Fan off".
+- [x] All 293 tests passing, `flutter analyze` clean (0 issues).
+
+## Phase 6b: Polish (P2)
 - [ ] Preventive ventilation suggestion (FR-7), with the "app must be open" limitation shown
 - [ ] In-app Medium/Danger notifications, debounced
 - [ ] Settings screen
@@ -168,6 +191,25 @@
   - Added `/config` node to `database.rules.json` (read: `auth != null`, write: device UID).
   - Pre-ventilation / predictive fan start postponed pending firmware design.
   - Total test suite expanded to 229 tests, static analysis clean (0 issues).
+- 2026-11-12: Real-device testing fixes implemented:
+  - Added pure Dart sensor validation (`lib/core/sensor_validation.dart`): rejects out-of-range sensor values (-40..80 °C, 0..100 % RH, 0..4095 ADC) and detects the DHT22 disconnection signature (temperature == 0.0 AND humidity == 0.0 simultaneously). Live `/system` renders "--" on invalid fields, forecast gate skips them, and history pipeline drops them so chart Y-bounds calculate strictly from valid physical data without breaking threshold visibility.
+  - Added "Simulate Sensor Unplugged" scenario to `FakeSystemRepository` and `SettingsScreen` demo actions, simulating temporary sensor disconnection and seamless recovery to diurnal baseline.
+  - Built pure Dart chart label collision detection and layout utilities (`lib/features/history/chart_label_utils.dart`): drops Y-axis ticks within ~14 px of thresholds or adjacent ticks; stacks threshold labels vertically (danger above line, safe below line) when separated by < 14 px; dedupes identical formatted X-axis labels and drops trailing ticks within a label width of the preceding tick. Tested with pure Dart unit tests.
+  - Derived all Demo Mode baselines and scenarios dynamically from `Thresholds.current`: normal diurnal baseline stays strictly Safe under any active preset; heat spike ramps through Caution into Danger and recovers; history anomalies cross Caution and Danger on temperature. Verified with `test/data/demo_thresholds_test.dart`.
+  - Replaced amber "Locked out" pill in `ForecastStatusCard` with neutral "Device offline" pill when device is offline, updating status explanation copy to reserve safety lockout wording for true operational lockouts.
+  - Test suite expanded to 261 tests, static analysis clean (0 issues).
+- 2026-11-12: Phase 6a (Timed manual ventilation & firmware alignment) implemented:
+  - Replaced `Switch` in `FanCard` with a timed action button (`FilledButton.tonal`). Idle label reflects known runtime: "Ventilate for N min" (when `/config/manualDurationSec` is present) or fallback "Ventilate" with helper "The fan runs for a fixed time set by the device."
+  - Extracted UI state derivation into a single pure function `deriveFanCardUiState` in `lib/features/dashboard/fan_card_state.dart` with 19 table-driven unit tests, covering `appOffline`, `deviceOffline`, `danger`, `safe`, `dangerLatched`, `waitingForDevice`, `running`, `pending`, and `idle`.
+  - Replaced `setManualToggle(bool)` with `requestManualVentilation()` across repositories and controllers. The app only ever writes `true` to `/system/manualToggle`. Verified via unit test that no code path writes `false`.
+  - Updated `FakeSystemRepository` with confirmed firmware behavior: emits bare keywords (`SAFE`, `CAUTION`, `DANGER`), rejects ventilation requests outside Caution, ignores `false` writes defensively, auto-resets after 5 minutes (`AppConfig.defaultManualDuration`), and cancels manual runs on Danger with fan latching ON through Caution until Safe. Publishes `manualEndsAt` (epoch seconds UTC) and `/config/manualDurationSec` as planned firmware fields.
+  - Danger latch evaluation (`evaluateDangerLatch`): latch helper ("Fan stays on until the room is safe.") appears only if held $\ge 6$ s in unlatched Caution or Danger was observed since last Safe, preventing text flash on fan spin-down after a normal run.
+  - Confirmation timeout: `ManualVentilationNotifier` monitors stream after write; if stream does not echo `manualToggle == true` within 5 s, or reverts to `false` in < 5 s, displays snackbar: "The device didn't start the fan. The room may no longer be in the stuffy range." No auto-retry.
+  - Overrun and clamping: if `manualToggle` remains `true` > 30 s after scheduled end time, displays "Waiting for the device..." and stays disabled. Clamps `manualEndsAt` if remaining < 0 or > 2× duration, falling back to "Fan running" without countdown.
+  - Isolated 1 s ticker: countdown text lives in a standalone `VentilationCountdownText` widget, so per-second countdown ticks do not trigger parent widget rebuilds.
+  - Accessibility: `SemanticsService.sendAnnouncement` announces "Ventilation started" and "Ventilation ended" once per state transition.
+  - Header updated to sentence case: "Fan on" / "Fan off".
+  - Test suite expanded to 293 unit and widget tests, static analysis clean (0 issues).
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 
 /// Settings screen providing the runtime Demo Mode switch and simulation triggers.
@@ -101,7 +102,31 @@ class SettingsScreen extends ConsumerWidget {
                             bottom: 12.0,
                           ),
                           child: Text(
-                            'Ramps temperature +0.5 °C per tick to ~33 °C, triggers Danger tier, then recovers.',
+                            'Ramps temperature through Caution (>= ${Thresholds.tempSafeMax} °C) into Danger tier (>= ${Thresholds.tempDangerMin} °C), then recovers.',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+
+                        // Sensor Unplugged Button
+                        OutlinedButton.icon(
+                          icon: const Icon(Icons.link_off_outlined),
+                          label: const Text('Simulate Sensor Unplugged'),
+                          onPressed: () {
+                            ref
+                                .read(fakeSystemRepositoryProvider)
+                                .simulateSensorUnplugged();
+                          },
+                        ),
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: 8.0,
+                            bottom: 12.0,
+                          ),
+                          child: Text(
+                            'Nulls temperature and humidity for a while, displaying "--" in the dashboard, then recovers.',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant,
                             ),

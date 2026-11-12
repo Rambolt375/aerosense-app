@@ -270,7 +270,11 @@ class ForecastGate {
   /// Standard explanation copy matching DESIGN.md §5 and PRD §FR-6.
   String get statusExplanation {
     if (isDeviceOffline) {
-      return 'Device offline. Predictive layer locked out. Deterministic safety logic in control.';
+      if (tempGate.status == MetricGateStatus.learning ||
+          aqGate.status == MetricGateStatus.learning) {
+        return 'Device offline. Learning will resume when the device reconnects.';
+      }
+      return 'Device offline. Predictive layer paused until the device reconnects.';
     }
     switch (status) {
       case ForecastGateStatus.active:

@@ -353,7 +353,10 @@ class _MockLiveSystemRepository implements SystemRepository {
   Stream<SystemState> watchSystemState() => const Stream.empty();
 
   @override
-  Future<void> setManualToggle(bool value) async {}
+  Stream<Map<String, dynamic>?> watchConfig() => const Stream.empty();
+
+  @override
+  Future<void> requestManualVentilation() async {}
 }
 
 class _MockLiveHistoryRepository implements HistoryRepository {

@@ -228,6 +228,7 @@ void main() {
         ),
       );
 
+      expect(find.text('Room is safe'), findsOneWidget);
       expect(
         find.text('All environmental parameters are within safe ranges.'),
         findsOneWidget,
@@ -246,6 +247,7 @@ void main() {
         ),
       );
 
+      expect(find.text('Room is getting stuffy'), findsOneWidget);
       expect(
         find.text(
           'The room is getting stuffy. Manual ventilation is available.',
@@ -265,6 +267,7 @@ void main() {
         ),
       );
 
+      expect(find.text('Hazardous air detected'), findsOneWidget);
       expect(
         find.text('Hazardous thresholds breached! Auto-fan is activated.'),
         findsOneWidget,

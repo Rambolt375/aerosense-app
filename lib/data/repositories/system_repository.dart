@@ -10,11 +10,14 @@ abstract class SystemRepository {
   /// Stream of raw snapshot value from `/system` for debug display.
   Stream<Object?> watchRawSystem();
 
-  /// Sets `/system/manualToggle` to [value].
+  /// Stream of `/config` node from RTDB for runtime configuration parameters.
+  Stream<Map<String, dynamic>?> watchConfig();
+
+  /// Requests a timed manual ventilation cycle by writing `true` to `/system/manualToggle`.
   ///
-  /// CRITICAL — firmware write rule: writes ONLY to `/system/manualToggle`.
-  /// Never calls set() on the whole `/system` node. See PRD §5.4.
-  Future<void> setManualToggle(bool value);
+  /// The app NEVER writes `false` to cancel — the firmware automatically resets
+  /// `manualToggle` when the run ends or if the request is rejected outside Caution.
+  Future<void> requestManualVentilation();
 
   /// Stream of app-to-Firebase connection state (`.info/connected`).
   Stream<bool> watchConnected();

@@ -42,4 +42,13 @@ class AppConfig {
 
   /// Minimum variance explained (R^2) required to declare a clear daily pattern.
   static const double minR2Pattern = 0.3;
+
+  /// Default duration for a manual ventilation run (5 minutes).
+  static const Duration defaultManualDuration = Duration(minutes: 5);
+
+  /// Default duration in seconds for manual ventilation (300 seconds).
+  static const int defaultManualDurationSec = 300;
+
+  /// Confirmation timeout waiting for firmware to echo manualToggle (5 seconds).
+  static const Duration manualToggleConfirmTimeout = Duration(seconds: 5);
 }

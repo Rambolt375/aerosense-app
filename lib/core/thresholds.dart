@@ -153,6 +153,7 @@ class Thresholds {
   // --- Temperature (°C) ---
   /// Lower boundary for Caution (Medium) temperature. Values >= [tempSafeMax] are Medium.
   static double get tempSafeMax => current.tempCautionMin;
+  static double get tempCautionMin => current.tempCautionMin;
 
   /// Lower boundary for Danger temperature. Values >= [tempDangerMin] are Danger.
   static double get tempDangerMin => current.tempDangerMin;
@@ -161,6 +162,7 @@ class Thresholds {
   /// Lower boundary for Caution (Medium) humidity.
   // TODO(confirm): firmware owner hasn't confirmed humidity use.
   static double get humiditySafeMax => current.humidityCautionMin;
+  static double get humidityCautionMin => current.humidityCautionMin;
 
   /// Lower boundary for Danger humidity.
   // TODO(confirm): firmware owner hasn't confirmed humidity use.
@@ -170,6 +172,7 @@ class Thresholds {
   // NOTE: This is an uncalibrated relative index from the MQ-135 sensor, NOT ppm.
   /// Lower boundary for Caution (Medium) air quality. Values >= [airQualitySafeMax] are Medium.
   static double get airQualitySafeMax => current.airQualityCautionMin;
+  static double get airQualityCautionMin => current.airQualityCautionMin;
 
   /// Lower boundary for Danger air quality. Values >= [airQualityDangerMin] are Danger.
   static double get airQualityDangerMin => current.airQualityDangerMin;

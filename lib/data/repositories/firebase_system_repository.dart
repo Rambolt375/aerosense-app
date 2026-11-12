@@ -23,10 +23,21 @@ class FirebaseSystemRepository implements SystemRepository {
   }
 
   @override
-  Future<void> setManualToggle(bool value) {
-    // Writes ONLY to /system/manualToggle — never the whole /system node.
-    // The ESP32 owns every other field under /system.
-    return _db.ref('system/manualToggle').set(value);
+  Future<void> requestManualVentilation() {
+    // Writes ONLY `true` to /system/manualToggle — never writes false, never writes whole node.
+    // The ESP32 firmware owns duration, fan latch, and resets manualToggle itself.
+    return _db.ref('system/manualToggle').set(true);
+  }
+
+  @override
+  Stream<Map<String, dynamic>?> watchConfig() {
+    return _db.ref('config').onValue.map((event) {
+      final value = event.snapshot.value;
+      if (value is Map) {
+        return Map<String, dynamic>.from(value);
+      }
+      return null;
+    });
   }
 
   @override

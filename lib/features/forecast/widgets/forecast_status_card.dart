@@ -42,6 +42,9 @@ class ForecastStatusCard extends ConsumerWidget {
         (g) => g.aqGate.consecutiveInTolerance,
       ),
     );
+    final isDeviceOffline = ref.watch(
+      forecastGateNotifierProvider.select((g) => g.isDeviceOffline),
+    );
     final fitState = ref.watch(diurnalFitProvider);
 
     final theme = Theme.of(context);
@@ -61,7 +64,13 @@ class ForecastStatusCard extends ConsumerWidget {
               children: [
                 Text('Forecast status', style: textTheme.titleMedium),
                 const Spacer(),
-                _buildOverallPill(context, overallStatus, fitState, tierColors),
+                _buildOverallPill(
+                  context,
+                  overallStatus,
+                  fitState,
+                  tierColors,
+                  isDeviceOffline,
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -70,10 +79,14 @@ class ForecastStatusCard extends ConsumerWidget {
             Text(
               explanation,
               style: textTheme.bodyMedium?.copyWith(
-                color: overallStatus == ForecastGateStatus.lockedOut
+                color:
+                    (overallStatus == ForecastGateStatus.lockedOut &&
+                        !isDeviceOffline)
                     ? tierColors.medium
                     : colorScheme.onSurfaceVariant,
-                fontWeight: overallStatus == ForecastGateStatus.lockedOut
+                fontWeight:
+                    (overallStatus == ForecastGateStatus.lockedOut &&
+                        !isDeviceOffline)
                     ? FontWeight.w500
                     : FontWeight.w400,
               ),
@@ -129,7 +142,37 @@ class ForecastStatusCard extends ConsumerWidget {
     ForecastGateStatus status,
     DiurnalFitState fitState,
     TierColors tierColors,
+    bool isDeviceOffline,
   ) {
+    if (isDeviceOffline) {
+      final colorScheme = Theme.of(context).colorScheme;
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.cloud_off_outlined,
+              size: 14,
+              color: colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Device offline',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final Color bgColor;
     final Color fgColor;
     final IconData icon;

@@ -25,7 +25,7 @@ The ESP32 firmware is the single source of truth for tier and fan state. The app
 
 **Goals**
 - G1. Live dashboard that updates within ~1 s of an RTDB change.
-- G2. Manual fan toggle that correctly reflects tier rules (enabled in Safe/Medium, locked in Danger).
+- G2. Manual fan control that correctly reflects tier rules (enabled in Medium/Caution only, disabled in Safe, locked in Danger).
 - G3. 24 h history charts with Safe/Medium/Danger bands.
 - G4. Diurnal sinusoidal forecast + residual-error gate, with clear "predictive layer active / locked out" state.
 - G5. One codebase running on **Android** and **Flutter Web**, responsive.
@@ -70,8 +70,11 @@ This section is derived from the firmware design. **CONFIRM every field type aga
 | `humidity` | number (% RH) | same |
 | `airQuality` | number (int 0–4095) | MQ-135 raw 12-bit ADC, relative index (not ppm) |
 | `fanStatus` | **CONFIRM**: string `"ON"/"OFF"` or bool | parse tolerantly |
-| `manualToggle` | bool | **written by the app**, read by ESP32 |
-| `statusMessage` | string | see 5.3 |
+| `manualToggle` | bool | **written by the app (true only)**, read & reset by ESP32 |
+| `manualEndsAt` | number (epoch seconds UTC) | **CONFIRM (planned)**: target end time for timed ventilation run; app parses defensively |
+| `statusMessage` | string | see 5.3 (firmware emits bare keywords `SAFE` / `CAUTION` / `DANGER`) |
+
+> Note: `/config/manualDurationSec` (number, seconds) is a planned configuration node in RTDB read by the app to show exact runtime (e.g. 300 s -> 5 min). If absent, app falls back to neutral "Ventilate" copy.
 
 ### 5.2 `/history` (archive, appended by ESP32 every 5 min via `pushJSON`)
 
@@ -102,7 +105,8 @@ Reference status strings from firmware (for display and prefix parsing):
 
 ### 5.4 Write rules (critical)
 
-- The app writes **only** `/system/manualToggle` (a bool), using `.set()` on that exact child path. **Never** write or `set()` the whole `/system` node: the ESP32 owns the rest.
+- The app writes **only** `/system/manualToggle` with value `true` to request a timed manual ventilation cycle, using `.set()` on that exact child path (`system/manualToggle`). The app **never** writes `false` to cancel — the ESP32 automatically resets `manualToggle` when the run ends, or immediately if rejected outside Caution.
+- **Never** write or `set()` the whole `/system` node: the ESP32 owns the rest.
 - The app never writes `/history`.
 
 ## 6. Functional requirements
@@ -125,14 +129,26 @@ Reference status strings from firmware (for display and prefix parsing):
   - If `/system/lastSeen` exists (**CONFIRM**, proposed new field: epoch seconds or ms written every cycle), mark the device **stale** when `now - lastSeen > 15 s`.
   - If it doesn't exist, don't show a stale warning. Show "Last value change: hh:mm:ss" instead, with neutral wording. Make the staleness feature a no-op in that case.
 
-### FR-4. Manual fan toggle
-- A switch bound to `/system/manualToggle` (read and write).
-- Behavior by tier (confirmed ESP32 firmware alignment):
-  - **Safe:** **disabled.** Helper text: "The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy." (Firmware keeps fan OFF in Safe tier).
-  - **Medium:** **enabled.** This is the primary "energy decision" moment, so give it prominence: "Room is stuffy. The fan stays off unless you turn it on." When on: "Manual ventilation is on. The fan is running." Firmware automatically resets `manualToggle` back to false after a fixed time (1–2 min).
-  - **Danger:** **disabled/locked.** Text: "Safety override active. The fan is forced on and manual control is bypassed."
-- Optimistic UI is allowed but must reconcile to the value streamed back from RTDB. Show a brief "sending..." state; on write error show a snackbar and revert. State also follows stream when firmware auto-resets `manualToggle` to `false`.
-- If the device is offline (> 20 min staleness) or app is offline, disable the toggle with an explanation.
+### FR-4. Manual fan control (timed ventilation)
+- A timed action button replacing the switch, bound to `/system/manualToggle` (app writes `true` only; firmware resets `manualToggle`).
+- State derivation: unified in a single pure function (`deriveFanCardUiState`) covering 9 mutually exclusive states (`appOffline`, `deviceOffline`, `danger`, `safe`, `dangerLatched`, `waitingForDevice`, `running`, `pending`, `idle`).
+- Behavior by state:
+  - **Caution idle:** **enabled.** Button label: `"Ventilate for N min"` when `/config/manualDurationSec` is known, else `"Ventilate"`. Helper text: `"Room is stuffy. The fan stays off unless you turn it on."` when duration is known, else `"The fan runs for a fixed time set by the device."`
+  - **Pending:** user initiated write. Button shows progress indicator with label `"Starting fan..."`, helper: `"Sending request to device..."`.
+  - **Running:** active manual cycle (`fanOn && manualToggle`). Button disabled. Label shows `"Fan running, M:SS left"` if countdown is known, or `"Fan running"` without countdown if opened mid-run or duration unknown. Helper: `"Manual ventilation is on. The fan is running."`
+  - **Waiting for device:** if `manualToggle` remains `true` 30 s after scheduled end time, button shows `"Waiting for the device..."` and stays disabled, with helper: `"Waiting for the device to turn off the fan."`
+  - **Danger latch:** if Danger occurs, active manual run is cancelled and fan latches ON through Caution until Safe. Button disabled, helper: `"Fan stays on until the room is safe."` (Note: latch text appears only if held $\ge 6$ s in unlatched Caution or Danger was observed since last Safe; does not flash when normal run ends).
+  - **Safe:** **disabled.** Helper: `"The fan stays off while the room is safe. Manual ventilation is available when the room gets stuffy."` (Firmware keeps fan OFF in Safe tier).
+  - **Danger:** **disabled/locked.** Helper: `"Safety override active. The fan is forced on and manual control is bypassed."`
+  - **Offline (app or device):** disabled with explanation (`"App is offline. Fan control unavailable."` / `"Device offline. Fan control unavailable."`).
+- Confirmation and timeout:
+  - If stream does not echo `manualToggle == true` within 5 s, or reverts to `false` in < 5 s, show snackbar: `"The device didn't start the fan. The room may no longer be in the stuffy range."` with no automatic retry.
+- Clamping:
+  - If `manualEndsAt` remaining time is < 0 or > 2× known/default duration, clamp to null and fall back to `"Fan running"` without countdown.
+- Architecture and accessibility:
+  - Header uses sentence case: `"Fan on"` / `"Fan off"`.
+  - Countdown text 1 s ticker is isolated in its own widget (`VentilationCountdownText`) to prevent rebuilding the parent `FanCard`.
+  - Accessibility announcements via `SemanticsService.sendAnnouncement`: announces `"Ventilation started"` and `"Ventilation ended"` once per transition.
 
 ### FR-5. History visualization
 - Load `/history` (`limitToLast`) once, then keep updated by listening to `onChildAdded` for new records (cadence is 1 record every 10 min). No full re-download on each event.
