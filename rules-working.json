@@ -1,0 +1,32 @@
+{
+    "rules": {
+        "system": {
+            ".read": "auth != null",
+            ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'",
+            "manualToggle": {
+                ".write": "auth != null && newData.val() === true",
+                ".validate": "newData.isBoolean()"
+            }
+        },
+        "history": {
+            ".read": "auth != null",
+            ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'"
+        },
+        "config": {
+            ".read": "auth != null",
+            ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'"
+        },
+        "forecast": {
+            ".read": "auth != null",
+            ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'",
+            "allowPreventive": {
+                ".write": "auth != null",
+                ".validate": "newData.isBoolean()"
+            },
+            "preventiveTrigger": {
+                ".write": "auth != null && newData.val() === true",
+                ".validate": "newData.isBoolean()"
+            }
+        }
+    }
+}
