@@ -3,17 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/features/notices/in_app_notice_notifier.dart';
 
-/// In-app notice banner displayed at the top of non-Dashboard screens.
+/// In-app notice banner displayed at the top of non-Dashboard screens for
+/// Caution and Danger tier transitions.
 ///
 /// Follows DESIGN.md §5: 1 px border, flat container color, icon + text,
 /// dismiss button with tooltip, and liveRegion semantics for screen readers.
+/// Respects top safe area so it never overlaps the system status bar.
+/// Note: Device offline/online notices are displayed as transient floating
+/// snackbars rather than banners.
 class InAppNoticeBanner extends ConsumerWidget {
   const InAppNoticeBanner({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notice = ref.watch(inAppNoticeProvider);
-    if (notice == null) return const SizedBox.shrink();
+    if (notice == null ||
+        (notice.type != NoticeType.caution &&
+            notice.type != NoticeType.danger)) {
+      return const SizedBox.shrink();
+    }
 
     final tierColors = context.tierColors;
 
@@ -31,49 +39,49 @@ class InAppNoticeBanner extends ConsumerWidget {
         solidColor = tierColors.medium;
         icon = Icons.warning_amber_outlined;
       case NoticeType.deviceOffline:
-        containerColor = tierColors.mediumContainer;
-        solidColor = tierColors.medium;
-        icon = Icons.wifi_off_outlined;
       case NoticeType.deviceOnline:
-        containerColor = tierColors.safeContainer;
-        solidColor = tierColors.safe;
-        icon = Icons.wifi;
+        return const SizedBox.shrink();
     }
 
-    return Semantics(
-      liveRegion: true,
-      label: notice.message,
-      child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: containerColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: solidColor, width: 1),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: solidColor, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                notice.message,
-                style: Theme.of(context).textTheme.bodyMedium
-                    ?.copyWith(color: solidColor, fontWeight: FontWeight.w500),
+    return SafeArea(
+      bottom: false,
+      child: Semantics(
+        liveRegion: true,
+        label: notice.message,
+        child: Container(
+          width: double.infinity,
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: containerColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: solidColor, width: 1),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: solidColor, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  notice.message,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: solidColor,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
-            ),
-            IconButton(
-              icon: Icon(Icons.close, color: solidColor, size: 18),
-              tooltip: 'Dismiss notice',
-              visualDensity: VisualDensity.compact,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              onPressed: () {
-                ref.read(inAppNoticeProvider.notifier).dismiss();
-              },
-            ),
-          ],
+              IconButton(
+                icon: Icon(Icons.close, color: solidColor, size: 18),
+                tooltip: 'Dismiss notice',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () {
+                  ref.read(inAppNoticeProvider.notifier).dismiss();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );

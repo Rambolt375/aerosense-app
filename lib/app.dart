@@ -6,6 +6,7 @@ import 'package:aerosense_app/core/router_refresh.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/notices/in_app_notice_notifier.dart';
 import 'package:aerosense_app/features/notices/widgets/in_app_notice_banner.dart';
 import 'package:aerosense_app/features/auth/debug_screen.dart';
 import 'package:aerosense_app/features/auth/login_screen.dart';
@@ -171,7 +172,7 @@ class AeroSenseApp extends ConsumerWidget {
 
 /// Switches between bottom [NavigationBar] on mobile (< 900 dp)
 /// and [NavigationRail] on web/desktop (≥ 900 dp). See DESIGN.md §4.
-class AppShellScaffold extends StatelessWidget {
+class AppShellScaffold extends ConsumerWidget {
   const AppShellScaffold({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
@@ -184,10 +185,28 @@ class AppShellScaffold extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 900;
     final showNoticeBanner = navigationShell.currentIndex != 0;
+
+    // Listen for transient device offline/online notices and show floating snackbar
+    ref.listen<InAppNotice?>(inAppNoticeProvider, (previous, next) {
+      if (next == null) return;
+      if (next.type == NoticeType.deviceOffline ||
+          next.type == NoticeType.deviceOnline) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.clearSnackBars();
+        messenger.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+            width: isDesktop ? 560 : null,
+            content: Text(next.message),
+          ),
+        );
+      }
+    });
 
     final content = Column(
       children: [

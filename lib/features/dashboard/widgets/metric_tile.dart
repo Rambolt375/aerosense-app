@@ -158,7 +158,7 @@ class _TierBadge extends StatelessWidget {
       case Tier.safe:
         return 'Safe';
       case Tier.medium:
-        return 'Medium';
+        return 'Caution';
       case Tier.danger:
         return 'Danger';
     }

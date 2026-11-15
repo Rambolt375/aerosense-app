@@ -49,6 +49,12 @@ class AppStrings {
   static const fanHelperDeviceOffline =
       'Device offline. Fan control unavailable.';
 
+  // Device Connection Notices (Requirement 8)
+  static String deviceOfflineAt(String? time) => time != null && time.isNotEmpty
+      ? 'Device offline. Last data at $time'
+      : 'Device offline.';
+  static const deviceReconnected = 'Device reconnected';
+
   // Snackbar Errors & Feedback
   static const fanErrorStartFailed =
       "The device didn't start the fan. The room may no longer be in the stuffy range.";

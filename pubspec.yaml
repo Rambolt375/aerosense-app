@@ -42,6 +42,8 @@ dependencies:
   fl_chart: ^1.3.0
   intl: ^0.20.3
   shared_preferences: ^2.5.6
+  google_sign_in: ^7.2.0
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:
@@ -53,6 +55,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -77,8 +80,9 @@ flutter:
   # https://flutter.dev/to/asset-from-package
 
   # Assets
-  # assets:
-  #   - images/
+  assets:
+    - assets/icon/icon.png
+    - assets/icon/google_logo.png
 
   # Bundled fonts: Inter (weights 400, 500, 600) per DESIGN.md
   # TODO(human): Place the following Inter font files in assets/fonts/:
@@ -95,3 +99,11 @@ flutter:
   #         weight: 500
   #       - asset: assets/fonts/Inter-SemiBold.ttf
   #         weight: 600
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "assets/icon/icon_background.png"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+

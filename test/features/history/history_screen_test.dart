@@ -97,9 +97,9 @@ void main() {
         // LineChart widgets rendered
         expect(find.byType(LineChart), findsNWidgets(3));
 
-        // Legend row on all 3 cards: "Safe", "Medium", "Danger"
+        // Legend row on all 3 cards: "Safe", "Caution", "Danger"
         expect(find.text('Safe'), findsNWidgets(3));
-        expect(find.text('Medium'), findsNWidgets(3));
+        expect(find.text('Caution'), findsNWidgets(3));
         expect(find.text('Danger'), findsNWidgets(3));
       },
     );

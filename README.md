@@ -45,16 +45,20 @@ Verify that `lib/firebase_options.dart` contains the `databaseURL` pointing to `
 > **Note on Firebase Security & Web Keys:**
 > The Firebase configuration parameters in `firebase_options.dart` (such as `apiKey` and `appId`) identify the Firebase project on Google servers. In client-side web and mobile apps, these identifiers are embedded in public client code by design and are not secrets. Real security is enforced on the server by **Firebase Authentication** and **Realtime Database Security Rules** (`database.rules.json`).
 
-### 3. Creating Auth Users
-Public self-signup is disabled in the app by default (`AppConfig.allowSignUp = false`). Users must be provisioned in the **Firebase Console**:
-1. Open the [Firebase Console](https://console.firebase.google.com/) $\to$ Authentication $\to$ Users.
-2. Click **Add user** and create an Email/Password account.
-3. Use these credentials to sign in on the app's login screen.
-4. *Tip for testing without credentials*: Click **Try Demo Mode** on the login screen to enter immediately without Firebase.
+### 3. User Authentication & Accounts
+- **Booth Visitors (Google Sign-In)**: Visitors authenticate instantly with "Continue with Google" without prior provisioning. They receive read-only access to view live telemetry and historical trends.
+- **Team Accounts (Email & Password)**: Team members must be provisioned in the **Firebase Console** (Authentication $\to$ Users $\to$ Add user). Use these credentials for administrative actions and manual ventilation control.
+  - *Important*: Team members who sign in with Google are visitors; the booth laptop must use the email/password team account to publish pre-ventilation.
+- **Testing without credentials**: Click **Try Demo Mode** on the login screen to explore the app with simulated data.
 
 ### 4. Deploying RTDB Security Rules
-The database rules enforce that users must be authenticated to read, devices write telemetry, and users can only write `true` to `manualToggle`:
+The database rules enforce that visitors and team members must be authenticated to read, the ESP32 device writes telemetry, and only provisioned team accounts can request manual ventilation:
+- `DEVICE_UID`: ESP32 device account UID.
+- `TEAM_UID_1`: Giovanni's team account UID.
+- `TEAM_UID_2`: Dedicated booth team account UID.
+
 ```bash
+# Replace placeholders in database.rules.json before deploying:
 firebase deploy --only database
 ```
 *(Reference: see `database.rules.json`)*.

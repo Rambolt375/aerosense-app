@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 6b (✅ COMPLETE — Settings, In-App Notices, Release Builds, Documentation; awaiting final review)
+> **Current phase:** 7a (✅ COMPLETE — Booth visitor Google sign-in, in-app browser detection, transient offline notices, app icons, and security rules; awaiting review)
 
 ## Blockers / open questions (owner: human)
 
@@ -134,6 +134,19 @@
 - [x] README documentation: environment versions, setup, demo day checklist, 48 h uptime requirement for forecasting, Inter font guide, no secrets
 - [x] Release builds succeeded: Android APK (standard & demo) and Web (standard & demo)
 - [x] All 323 tests passing, `flutter analyze` clean (0 issues)
+
+## Phase 7a: Booth Visitor Auth, Security Rules & App Icons
+- [x] Google Sign-In: added `google_sign_in` (v7.2.0) with clean platform separation (`signInWithPopup` on Web, `GoogleSignIn.instance.initialize()` / `authenticate()` on Android), defensive error mapping, and silent cancellation.
+- [x] In-app browser detection: pure function `isInAppBrowser(userAgent)` detecting Instagram, Facebook, Line, WhatsApp, TikTok, and generic Android WebViews with unit tests (`test/core/browser_utils_test.dart`); warning hint shown under Google button on Web.
+- [x] Login screen redesign: scrollable `SingleChildScrollView`, 64 dp rounded app icon from `assets/icon/icon.png` with semantic label, primary "Continue with Google" button featuring the official Google "G" logo icon on a white circular badge, secondary "or team sign-in" form, and passing responsive test at 360 px with 1.3x text scale.
+- [x] Transient device offline/online notices: converted from overlapping top banner to app-level floating `SnackBar` (`SnackBarBehavior.floating`, 5 s duration, max-width 560 dp on desktop, `clearSnackBars` before show); fires on transition and once on launch if first resolved state is offline.
+- [x] Banner safety: Caution and Danger banners respect top `SafeArea` so they never overlap the Android status bar.
+- [x] App icons: configured `flutter_launcher_icons` for Android only (`assets/icon/icon.png`, adaptive background/foreground); verified mipmap generation and `AndroidManifest.xml` `@mipmap/ic_launcher`; copied supplied web icons to `web/` and `web/icons/`; updated `manifest.json` with `#06293D` theme and `#0B131B` background.
+- [x] Consistency fix: converted user-facing "Medium" strings to "Caution" across metric tiles, chart cards, and test assertions while preserving `Tier.medium` internally.
+- [x] Settings screen: added User Account card displaying user avatar/photo, display name, email, provider chip (Google / Team / Demo), and sign-out confirmation dialog.
+- [x] Database rules: updated `database.rules.json` with placeholders `DEVICE_UID`, `TEAM_UID_1`, and `TEAM_UID_2`; visitors have read-only access.
+- [x] Documentation: updated `README.md` with visitor vs. team account distinction and pre-ventilation note.
+- [x] Tests passing, `flutter analyze` clean (0 issues)
 
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).

@@ -16,12 +16,19 @@ abstract class AuthRepository {
   /// Throws [AuthFailure] on bad credentials or other auth errors.
   Future<void> signIn({required String email, required String password});
 
+  /// Signs in with Google OAuth.
+  ///
+  /// On Web, uses popup authentication. On Android, invokes the Google Sign In SDK.
+  /// If the user dismisses the sign-in prompt, completes cleanly without throwing.
+  /// Throws [AuthFailure] on network errors, blocked popups, or auth exceptions.
+  Future<void> signInWithGoogle();
+
   /// Signs out the current user.
   Future<void> signOut();
 }
 
 /// Friendly authentication failure surfaced to the UI.
-class AuthFailure {
+class AuthFailure implements Exception {
   const AuthFailure(this.message);
   final String message;
 

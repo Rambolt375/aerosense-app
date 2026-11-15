@@ -161,7 +161,7 @@ class MetricChartCard extends StatelessWidget {
         const SizedBox(width: 10),
         _legendDot(tierColors.medium),
         const SizedBox(width: 4),
-        Text('Medium', style: Theme.of(context).textTheme.labelSmall),
+        Text('Caution', style: Theme.of(context).textTheme.labelSmall),
         const SizedBox(width: 10),
         _legendDot(tierColors.danger),
         const SizedBox(width: 4),

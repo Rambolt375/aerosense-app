@@ -12,13 +12,16 @@ import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 
 class _MockSignOutAuthRepository implements AuthRepository {
+  _MockSignOutAuthRepository({this.user});
+
+  final User? user;
   bool signOutCalled = false;
 
   @override
-  Stream<User?> authStateChanges() => Stream.value(null);
+  Stream<User?> authStateChanges() => Stream.value(user);
 
   @override
-  User? get currentUser => null;
+  User? get currentUser => user;
 
   @override
   Future<void> signIn({
@@ -27,9 +30,49 @@ class _MockSignOutAuthRepository implements AuthRepository {
   }) async {}
 
   @override
+  Future<void> signInWithGoogle() async {}
+
+  @override
   Future<void> signOut() async {
     signOutCalled = true;
   }
+}
+
+class _TestUserInfo implements UserInfo {
+  _TestUserInfo({required this.providerId, this.displayName, this.email});
+
+  @override
+  final String providerId;
+  @override
+  String get uid => 'test-uid';
+  @override
+  final String? displayName;
+  @override
+  final String? email;
+  @override
+  String? get phoneNumber => null;
+  @override
+  String? get photoURL => null;
+}
+
+class _TestUser implements User {
+  _TestUser({
+    this.displayName = 'Alice Visitor',
+    this.email = 'alice@example.com',
+    this.providerData = const [],
+  });
+
+  @override
+  final String? displayName;
+  @override
+  final String? email;
+  @override
+  String? get photoURL => 'https://example.com/alice.png';
+  @override
+  final List<UserInfo> providerData;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class _TestDemoNotifier extends DemoModeNotifier {
@@ -165,7 +208,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
 
       final container = ProviderContainer(
-        overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -224,6 +270,51 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(mockAuth.signOutCalled, isTrue);
+    });
+
+    testWidgets('displays user profile details and Google chip', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      final mockUser = _TestUser(
+        displayName: 'Alice Visitor',
+        email: 'alice@example.com',
+        providerData: [
+          _TestUserInfo(
+            providerId: 'google.com',
+            displayName: 'Alice Visitor',
+            email: 'alice@example.com',
+          ),
+        ],
+      );
+
+      final mockAuth = _MockSignOutAuthRepository(user: mockUser);
+
+      final container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authRepositoryProvider.overrideWithValue(mockAuth),
+          demoModeProvider.overrideWith(() => _TestDemoNotifier(false)),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(buildSettings(container: container));
+      await tester.pumpAndSettle();
+
+      // Account Card Elements
+      expect(find.text('Account'), findsOneWidget);
+      expect(find.text('Alice Visitor'), findsOneWidget);
+      expect(find.text('alice@example.com'), findsOneWidget);
+      expect(find.text('Google'), findsOneWidget);
+      expect(find.byType(CircleAvatar), findsOneWidget);
     });
   });
 }

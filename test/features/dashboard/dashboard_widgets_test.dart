@@ -114,7 +114,7 @@ void main() {
         ),
       );
 
-      expect(find.text('Medium'), findsOneWidget);
+      expect(find.text('Caution'), findsOneWidget);
     });
   });
 

@@ -17,6 +17,11 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<void> signInWithGoogle() async {
+    // Demo Mode: synthetic sign-in succeeds immediately.
+  }
+
+  @override
   Future<void> signOut() async {
     // No-op in Demo Mode — sign-out has no effect without real auth.
   }
@@ -38,6 +43,12 @@ class _FakeUser implements User {
 
   @override
   bool get emailVerified => true;
+
+  @override
+  String? get photoURL => null;
+
+  @override
+  List<UserInfo> get providerData => const [];
 
   // Unused User interface members — not needed for the demo flow.
   @override

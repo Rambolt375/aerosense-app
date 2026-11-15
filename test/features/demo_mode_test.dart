@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aerosense_app/app.dart';
+import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
@@ -241,10 +243,7 @@ void main() {
           ),
         );
 
-        final tryDemoButton = find.widgetWithText(
-          OutlinedButton,
-          'Try Demo Mode',
-        );
+        final tryDemoButton = find.text('Try Demo Mode');
         expect(tryDemoButton, findsOneWidget);
 
         expect(container.read(demoModeProvider), isFalse);
@@ -260,8 +259,18 @@ void main() {
     testWidgets('switch toggles demo mode and reveals simulation triggers', (
       tester,
     ) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
       final container = ProviderContainer(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
           demoModeProvider.overrideWith(() => _TestDemoNotifier(false)),
         ],
       );
@@ -339,6 +348,9 @@ class _MockLiveAuthRepository implements AuthRepository {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<void> signInWithGoogle() async {}
 
   @override
   Future<void> signOut() async {}

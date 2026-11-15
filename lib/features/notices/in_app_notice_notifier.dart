@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
@@ -38,7 +39,8 @@ class InAppNotice {
 /// Pure notifier managing in-app notice generation, cooldowns, and auto-clearing.
 ///
 /// Rules:
-/// - No notice for the first value after launch.
+/// - No Caution notice for the first value after launch.
+/// - If initial resolved device status is offline, emit offline notice once on launch.
 /// - Danger cooldown is 2 minutes; others (caution, offline, online) are 10 minutes.
 /// - Caution and Danger notices auto-clear when the tier returns to Safe.
 /// - Danger is never dismissed by time alone.
@@ -65,7 +67,7 @@ class InAppNoticeNotifier extends Notifier<InAppNotice?> {
       handleDeviceStatus(next);
     });
 
-    // Prime baseline if data already exists synchronously without firing notice
+    // Prime baseline if data already exists synchronously without firing tier notice
     final initialSystem = ref.read(systemStateProvider).asData?.value;
     if (initialSystem != null) {
       _previousTier = initialSystem.tier;
@@ -73,8 +75,20 @@ class InAppNoticeNotifier extends Notifier<InAppNotice?> {
     }
 
     final initialDevice = ref.read(deviceStatusProvider);
-    _previousDeviceStatus = initialDevice.status;
-    _isFirstDeviceStatusSample = false;
+    if (initialDevice.status != DeviceOnlineStatus.unknown) {
+      _previousDeviceStatus = initialDevice.status;
+      _isFirstDeviceStatusSample = false;
+      if (initialDevice.status == DeviceOnlineStatus.offline) {
+        final clock = ref.read(clockProvider);
+        final now = clock();
+        _lastEmittedTimes[NoticeType.deviceOffline] = now;
+        return InAppNotice(
+          type: NoticeType.deviceOffline,
+          message: AppStrings.deviceOfflineAt(initialDevice.formattedTime),
+          timestamp: now,
+        );
+      }
+    }
 
     return null;
   }
@@ -137,15 +151,25 @@ class InAppNoticeNotifier extends Notifier<InAppNotice?> {
   /// Processes device connection/staleness changes.
   void handleDeviceStatus(DeviceStatus deviceStatus) {
     final status = deviceStatus.status;
+    if (status == DeviceOnlineStatus.unknown) return;
+
+    final clock = ref.read(clockProvider);
+    final now = clock();
 
     if (_isFirstDeviceStatusSample) {
       _isFirstDeviceStatusSample = false;
       _previousDeviceStatus = status;
+      // Trigger ONCE when the first resolved status after launch is offline
+      if (status == DeviceOnlineStatus.offline) {
+        _lastEmittedTimes[NoticeType.deviceOffline] = now;
+        state = InAppNotice(
+          type: NoticeType.deviceOffline,
+          message: AppStrings.deviceOfflineAt(deviceStatus.formattedTime),
+          timestamp: now,
+        );
+      }
       return;
     }
-
-    final clock = ref.read(clockProvider);
-    final now = clock();
 
     // Transition to offline
     if (status == DeviceOnlineStatus.offline &&
@@ -156,7 +180,7 @@ class InAppNoticeNotifier extends Notifier<InAppNotice?> {
         _lastEmittedTimes[NoticeType.deviceOffline] = now;
         state = InAppNotice(
           type: NoticeType.deviceOffline,
-          message: 'Device offline. Fan control unavailable.',
+          message: AppStrings.deviceOfflineAt(deviceStatus.formattedTime),
           timestamp: now,
         );
       }
@@ -170,7 +194,7 @@ class InAppNoticeNotifier extends Notifier<InAppNotice?> {
         _lastEmittedTimes[NoticeType.deviceOnline] = now;
         state = InAppNotice(
           type: NoticeType.deviceOnline,
-          message: 'Device reconnected.',
+          message: AppStrings.deviceReconnected,
           timestamp: now,
         );
       }

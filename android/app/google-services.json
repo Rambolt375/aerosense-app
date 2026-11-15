@@ -13,7 +13,20 @@
           "package_name": "com.example.aerosense_app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "803962149882-6acemlo4ona8q96vb8k864tcj5idrq6u.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.aerosense_app",
+            "certificate_hash": "2149766c553173703e4bb1bc780c6b79d7cdbea4"
+          }
+        },
+        {
+          "client_id": "803962149882-2rvqbl5k4sl9oe0kfs3u75ivejaolk58.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDc8MyHjOKl5U3DzbPpTq2tCBoiFGWUHLI"
@@ -21,7 +34,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "803962149882-2rvqbl5k4sl9oe0kfs3u75ivejaolk58.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
