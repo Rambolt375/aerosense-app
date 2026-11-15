@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_auth_repository.dart';
@@ -81,6 +82,28 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
 
+/// Whether the current authenticated session is a team member account.
+///
+/// NOTE on Security Authority:
+/// This UI gate is cosmetic (hiding administrative controls and pre-ventilation switches).
+/// The Firebase Realtime Database Security Rules (`database.rules.json`) are the real
+/// authority (enforcing write operations strictly by specific team account UIDs).
+final isTeamAccountProvider = Provider<bool>((ref) {
+  final isDemo = ref.watch(demoModeProvider);
+  if (isDemo) return true; // Demo mode permits full evaluation of team controls
+
+  final user = ref.watch(authStateProvider).asData?.value;
+  if (user == null) return false;
+
+  bool isGoogle = false;
+  try {
+    isGoogle = user.providerData.any((p) => p.providerId == 'google.com');
+  } catch (_) {}
+
+  // Email/password team members only (Google sign-in is treated as booth visitor)
+  return !isGoogle;
+});
+
 // ---------------------------------------------------------------------------
 // System telemetry providers
 // ---------------------------------------------------------------------------
@@ -103,6 +126,11 @@ final rawSystemProvider = StreamProvider<Object?>((ref) {
 /// Raw configuration map from `/config`.
 final configStreamProvider = StreamProvider<Map<String, dynamic>?>((ref) {
   return ref.watch(systemRepositoryProvider).watchConfig();
+});
+
+/// Stream of `/forecast` node from RTDB for automated pre-ventilation settings.
+final forecastPreferencesProvider = StreamProvider<ForecastPreferences>((ref) {
+  return ref.watch(systemRepositoryProvider).watchForecastPreferences();
 });
 
 /// Known manual ventilation duration from `/config/manualDurationSec`, or null if not present.

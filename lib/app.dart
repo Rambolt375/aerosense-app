@@ -12,6 +12,7 @@ import 'package:aerosense_app/features/auth/debug_screen.dart';
 import 'package:aerosense_app/features/auth/login_screen.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
+import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/features/history/history_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 import 'package:aerosense_app/shared/demo_ribbon.dart';
@@ -189,6 +190,9 @@ class AppShellScaffold extends ConsumerWidget {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 900;
     final showNoticeBanner = navigationShell.currentIndex != 0;
+
+    // Active pre-ventilation publisher watcher (if designated as publishing device)
+    ref.watch(preventivePublisherProvider);
 
     // Listen for transient device offline/online notices and show floating snackbar
     ref.listen<InAppNotice?>(inAppNoticeProvider, (previous, next) {

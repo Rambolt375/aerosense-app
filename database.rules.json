@@ -1,30 +1,30 @@
 {
   "rules": {
     "system": {
-      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1')",
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2')",
       ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'",
       "manualToggle": {
-        ".write": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1') && newData.val() === true",
+        ".write": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2') && newData.val() === true",
         ".validate": "newData.isBoolean()"
       }
     },
     "history": {
-      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1')",
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2')",
       ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'"
     },
     "config": {
-      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1')",
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2')",
       ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'"
     },
     "forecast": {
-      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1')",
+      ".read": "auth != null && (auth.token.firebase.sign_in_provider === 'google.com' || auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13' || auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2')",
       ".write": "auth.uid === 'sJWhkJHrqlcVfoX3jFeZhiBNld13'",
       "allowPreventive": {
-        ".write": "auth != null && auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1'",
+        ".write": "auth != null && (auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2')",
         ".validate": "newData.isBoolean()"
       },
       "preventiveTrigger": {
-        ".write": "auth != null && auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' && newData.val() === true",
+        ".write": "auth != null && (auth.uid === 'nIKbVDbqkxVzu0uQaxTTa9A7Tni1' || auth.uid === 'fYCssXiYilXVAvvxkbZml6IvSiu2') && newData.val() === true",
         ".validate": "newData.isBoolean()"
       }
     }

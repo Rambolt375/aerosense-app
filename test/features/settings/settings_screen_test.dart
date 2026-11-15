@@ -8,7 +8,9 @@ import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_auth_repository.dart';
+import 'package:aerosense_app/data/repositories/fake_system_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 
 class _MockSignOutAuthRepository implements AuthRepository {
@@ -104,15 +106,18 @@ void main() {
 
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
+      final fakeSystemRepo = FakeSystemRepository();
 
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          systemRepositoryProvider.overrideWithValue(fakeSystemRepo),
           demoModeProvider.overrideWith(() => _TestDemoNotifier(false)),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(fakeSystemRepo.dispose);
 
       await tester.pumpWidget(buildSettings(container: container));
       await tester.pumpAndSettle();
@@ -206,14 +211,17 @@ void main() {
     testWidgets('theme selection switches themeModeProvider', (tester) async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
+      final fakeSystemRepo = FakeSystemRepository();
 
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+          systemRepositoryProvider.overrideWithValue(fakeSystemRepo),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(fakeSystemRepo.dispose);
 
       await tester.pumpWidget(buildSettings(container: container));
       await tester.pumpAndSettle();
@@ -240,14 +248,17 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
 
       final mockAuth = _MockSignOutAuthRepository();
+      final fakeSystemRepo = FakeSystemRepository();
 
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           authRepositoryProvider.overrideWithValue(mockAuth),
+          systemRepositoryProvider.overrideWithValue(fakeSystemRepo),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(fakeSystemRepo.dispose);
 
       await tester.pumpWidget(buildSettings(container: container));
       await tester.pumpAndSettle();
@@ -296,15 +307,18 @@ void main() {
       );
 
       final mockAuth = _MockSignOutAuthRepository(user: mockUser);
+      final fakeSystemRepo = FakeSystemRepository();
 
       final container = ProviderContainer(
         overrides: [
           sharedPreferencesProvider.overrideWithValue(prefs),
           authRepositoryProvider.overrideWithValue(mockAuth),
+          systemRepositoryProvider.overrideWithValue(fakeSystemRepo),
           demoModeProvider.overrideWith(() => _TestDemoNotifier(false)),
         ],
       );
       addTearDown(container.dispose);
+      addTearDown(fakeSystemRepo.dispose);
 
       await tester.pumpWidget(buildSettings(container: container));
       await tester.pumpAndSettle();
@@ -315,6 +329,63 @@ void main() {
       expect(find.text('alice@example.com'), findsOneWidget);
       expect(find.text('Google'), findsOneWidget);
       expect(find.byType(CircleAvatar), findsOneWidget);
+
+      // Visitor account does not see team pre-ventilation controls
+      expect(find.text('Automated Pre-Ventilation (Team)'), findsNothing);
     });
+
+    testWidgets(
+      'team account can toggle allow pre-ventilation and publisher switches',
+      (tester) async {
+        tester.view.physicalSize = const Size(800, 2400);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final fakeSystemRepo = FakeSystemRepository();
+
+        final container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
+            systemRepositoryProvider.overrideWithValue(fakeSystemRepo),
+            demoModeProvider.overrideWith(() => _TestDemoNotifier(false)),
+          ],
+        );
+        addTearDown(container.dispose);
+        addTearDown(fakeSystemRepo.dispose);
+
+        await tester.pumpWidget(buildSettings(container: container));
+        await tester.pumpAndSettle();
+
+        // Team section is visible
+        expect(find.text('Automated Pre-Ventilation (Team)'), findsOneWidget);
+
+        // Toggle allow pre-ventilation switch
+        final allowSwitch = find.widgetWithText(
+          SwitchListTile,
+          'Allow pre-ventilation',
+        );
+        expect(allowSwitch, findsOneWidget);
+        await tester.tap(allowSwitch);
+        await tester.pumpAndSettle();
+
+        expect(fakeSystemRepo.currentAllowPreventive, isTrue);
+
+        // Toggle local device publisher switch
+        final pubSwitch = find.widgetWithText(
+          SwitchListTile,
+          'This device publishes pre-ventilation',
+        );
+        expect(pubSwitch, findsOneWidget);
+        await tester.tap(pubSwitch);
+        await tester.pumpAndSettle();
+
+        expect(container.read(publishPreventiveTriggersProvider), isTrue);
+        expect(prefs.getBool(PublishPreventiveNotifier.prefKey), isTrue);
+      },
+    );
   });
 }

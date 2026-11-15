@@ -5,6 +5,7 @@ import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 
 /// Settings screen providing read-only hardware thresholds, forecast parameters,
 /// theme selection, Demo Mode controls, and account management.
@@ -220,6 +221,92 @@ class SettingsScreen extends ConsumerWidget {
                               color: theme.colorScheme.onSurfaceVariant,
                             ),
                           ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+
+              // ---------------------------------------------------------------
+              // Automated Pre-Ventilation (Team Only)
+              // ---------------------------------------------------------------
+              if (ref.watch(isTeamAccountProvider)) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0,
+                            vertical: 8.0,
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Automated Pre-Ventilation (Team)',
+                                style: theme.textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'The ESP32 firmware checks allowPreventive before accepting pre-ventilation triggers.',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Divider(height: 1),
+                        SwitchListTile(
+                          title: const Text('Allow pre-ventilation'),
+                          subtitle: const Text(
+                            'Opt into automated pre-ventilation cycles ahead of diurnal air quality peaks.',
+                          ),
+                          value: ref.watch(
+                            forecastPreferencesProvider.select(
+                              (p) => p.asData?.value.allowPreventive ?? false,
+                            ),
+                          ),
+                          onChanged: (newValue) async {
+                            try {
+                              await ref
+                                  .read(systemRepositoryProvider)
+                                  .setAllowPreventive(newValue);
+                            } catch (_) {
+                              if (context.mounted) {
+                                final messenger = ScaffoldMessenger.of(context);
+                                messenger.clearSnackBars();
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    behavior: SnackBarBehavior.floating,
+                                    content: Text('Could not send the request'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                        ),
+                        const Divider(height: 1),
+                        SwitchListTile(
+                          title: const Text(
+                            'This device publishes pre-ventilation',
+                          ),
+                          subtitle: const Text(
+                            'Designate this device (e.g. booth laptop) to send automated pre-ventilation triggers. Keep off on other devices.',
+                          ),
+                          value: ref.watch(publishPreventiveTriggersProvider),
+                          onChanged: (newValue) async {
+                            await ref
+                                .read(
+                                  publishPreventiveTriggersProvider.notifier,
+                                )
+                                .setPublishing(newValue);
+                          },
                         ),
                       ],
                     ),

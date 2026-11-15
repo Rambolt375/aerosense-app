@@ -1,4 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/system_repository.dart';
 
@@ -46,5 +47,24 @@ class FirebaseSystemRepository implements SystemRepository {
         .ref('.info/connected')
         .onValue
         .map((event) => (event.snapshot.value as bool?) ?? false);
+  }
+
+  @override
+  Stream<ForecastPreferences> watchForecastPreferences() {
+    return _db.ref('forecast').onValue.map((event) {
+      return ForecastPreferences.fromJson(event.snapshot.value);
+    });
+  }
+
+  @override
+  Future<void> setAllowPreventive(bool allowed) {
+    // Writes ONLY to /forecast/allowPreventive — this is the only path the app writes false.
+    return _db.ref('forecast/allowPreventive').set(allowed);
+  }
+
+  @override
+  Future<void> requestPreventiveTrigger() {
+    // Writes ONLY `true` to /forecast/preventiveTrigger — never writes false, no retries.
+    return _db.ref('forecast/preventiveTrigger').set(true);
   }
 }

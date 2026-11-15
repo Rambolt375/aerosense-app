@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/fake_system_repository.dart';
@@ -26,6 +27,16 @@ class _FailingSystemRepository implements SystemRepository {
 
   @override
   Stream<bool> watchConnected() => Stream.value(true);
+
+  @override
+  Stream<ForecastPreferences> watchForecastPreferences() =>
+      const Stream.empty();
+
+  @override
+  Future<void> setAllowPreventive(bool allowed) async {}
+
+  @override
+  Future<void> requestPreventiveTrigger() async {}
 }
 
 void main() {

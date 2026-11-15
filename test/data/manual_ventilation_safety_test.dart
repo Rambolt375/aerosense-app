@@ -1,9 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/system_repository.dart';
 
 class _WriteTrackingSystemRepository implements SystemRepository {
   final List<dynamic> writes = [];
+  final List<dynamic> triggerWrites = [];
+  final List<bool> allowPreventiveWrites = [];
 
   @override
   Future<void> requestManualVentilation() async {
@@ -22,6 +25,20 @@ class _WriteTrackingSystemRepository implements SystemRepository {
 
   @override
   Stream<bool> watchConnected() => Stream.value(true);
+
+  @override
+  Stream<ForecastPreferences> watchForecastPreferences() =>
+      const Stream.empty();
+
+  @override
+  Future<void> setAllowPreventive(bool allowed) async {
+    allowPreventiveWrites.add(allowed);
+  }
+
+  @override
+  Future<void> requestPreventiveTrigger() async {
+    triggerWrites.add(true);
+  }
 }
 
 void main() {
@@ -33,6 +50,15 @@ void main() {
 
       expect(repo.writes, equals([true]));
       expect(repo.writes.contains(false), isFalse);
+    });
+
+    test('requestPreventiveTrigger only writes true and never false', () async {
+      final repo = _WriteTrackingSystemRepository();
+
+      await repo.requestPreventiveTrigger();
+
+      expect(repo.triggerWrites, equals([true]));
+      expect(repo.triggerWrites.contains(false), isFalse);
     });
   });
 }

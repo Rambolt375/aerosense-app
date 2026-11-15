@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 7a (✅ COMPLETE — Booth visitor Google sign-in, in-app browser detection, transient offline notices, app icons, and security rules; awaiting review)
+> **Current phase:** 6c (✅ COMPLETE — Automated & demo pre-ventilation decision engine, single-publisher designation, firmware decline handling, PreVentilationCard, and settings controls; awaiting review)
 
 ## Blockers / open questions (owner: human)
 
@@ -12,7 +12,7 @@
 - [x] Firebase project ID (`aerosense-502de`), RTDB URL (`asia-southeast1`)
 - [ ] Confirm whether firmware resets `manualToggle` to `false` on boot
 - [ ] Confirm whether humidity is used in firmware tier logic (currently marked `// TODO(confirm)`)
-- [ ] Pre-ventilation / predictive fan start: postponed pending firmware design
+- [ ] Pre-ventilation firmware integration: Phase 6c app logic, decision engine, decline handling, and demo triggers implemented with `// TODO(confirm)` on firmware contract; pending physical confirmation of `/forecast` node handling on real ESP32
 - [ ] Add Inter font files to `assets/fonts/` (Inter-Regular.ttf, Inter-Medium.ttf, Inter-SemiBold.ttf) and uncomment `fonts` block in `pubspec.yaml`
 - [x] Run `flutterfire configure` to register the Android app in the Firebase project and generate final `firebase_options.dart`
 - [ ] Hardware check: toggle in Medium clicks the relay; locked in Danger (needs real ESP32)
@@ -124,7 +124,7 @@
 - [x] All 293 tests passing, `flutter analyze` clean (0 issues).
 
 ## Phase 6b: Polish (P2)
-- [ ] Pre-ventilation / predictive fan start (FR-7): postponed pending firmware design
+- [x] Pre-ventilation / predictive fan start (FR-7): implemented in Phase 6c (see below)
 - [x] In-app Medium/Danger & device connection notices: debounced (Danger 2 min cooldown, Caution/Offline/Online 10 min), auto-clears on return to Safe, dismiss button with tooltip, `liveRegion` semantics, hidden on Dashboard tab
 - [x] Settings screen: appearance/theme switcher, Demo Mode switch & scenario triggers, read-only safety thresholds & forecast parameters interpolated from `Thresholds.current` and `AppConfig`, version display, sign-out confirmation dialog
 - [x] Theme persistence: Option A using `shared_preferences`, loaded before `runApp` to eliminate theme flashing; Demo Mode strictly excluded from persistence
@@ -134,6 +134,19 @@
 - [x] README documentation: environment versions, setup, demo day checklist, 48 h uptime requirement for forecasting, Inter font guide, no secrets
 - [x] Release builds succeeded: Android APK (standard & demo) and Web (standard & demo)
 - [x] All 323 tests passing, `flutter analyze` clean (0 issues)
+
+## Phase 6c: Automated & Demo Pre-Ventilation (FR-7)
+- [x] Decision engine: pure function `evaluatePreventiveDecision` (`lib/features/forecast/preventive_decision.dart`) implementing all 10 PRD gates: `allowPreventive == true`, AQ residual gate `Active`, $R^2 \ge 0.3$, predicted peak $\ge 1400$ (Caution threshold), lead window $10 \le \Delta t \le 20\text{ min}$, device online ($\le 20\text{ min}$), tier != Danger, fan idle, no trigger in flight, peak not already triggered today, 6-hour cooldown.
+- [x] Data layer & firmware write safety: `ForecastPreferences` model (`lib/data/models/forecast_preferences.dart`) defensively parsing `/forecast` node (`allowPreventive`, `preventiveTrigger`). `SystemRepository` methods: `setAllowPreventive(bool)` and `requestPreventiveTrigger()` (strictly writes `true` only; never writes `false`, no auto-retries).
+- [x] Fake firmware simulation: `FakeSystemRepository` pre-ventilation simulation: runs fixed-duration cycle (default 300 s) in Safe/Caution when `allowPreventive == true`, resets `preventiveTrigger` to false on cycle start, and automatically resets `preventiveTrigger` to false immediately without starting fan if disallowed, busy, or in Danger.
+- [x] Local publisher designation & persistence: `PublishPreventiveNotifier` (`publishPreventiveTriggersProvider`) manages local toggle ("This device publishes pre-ventilation") persisted in `SharedPreferences` (defaults to false). `PreventiveTimestampsNotifier` persists `lastTriggerTime` and `lastTriggeredPeakTime` locally across page reloads.
+- [x] Automated publisher loop: `preventivePublisherProvider` evaluates every 30 seconds when designated as publisher, publishing trigger when conditions met and recording timestamps. Provider watched in root `AppShellScaffold` to evaluate app-wide when designated. Evaluation timers cancel on dispose or when publishing is off.
+- [x] UI status card: `PreVentilationCard` on `ForecastScreen` displaying status pill (Off, Armed, Running, Unavailable with specific reason). Granular `.select()` listeners prevent 2 s telemetry repaints.
+- [x] Demo actuation: team-only "Run pre-ventilation now (demo)" button disabled with visible reason when disallowed/offline/Danger/busy.
+- [x] 5-second decline detection & snackbars: `RunPreVentilationNotifier` detects if trigger reverts to `false` in $\le 5$ s while fan remains off, showing floating SnackBar: "The device declined (permission off or busy)". Network or permission errors show floating SnackBar: "Could not send the request" and revert switches without retrying.
+- [x] Settings screen: added "Automated Pre-Ventilation (Team)" card visible to team accounts only, hosting "Allow pre-ventilation" RTDB switch and "This device publishes pre-ventilation" local switch.
+- [x] Unit, repository, and widget tests: comprehensive tests covering decision rules, fake repository cycle/decline behaviors, SharedPreferences persistence, publisher loop, `PreVentilationCard` states, `SettingsScreen` pre-ventilation controls, and responsive layout across all breakpoints (total 379 tests passing).
+- [x] `AGENTS.md` and `database.rules.json` write safety rules updated: `/forecast/allowPreventive` and `/forecast/preventiveTrigger` documented.
 
 ## Phase 7a: Booth Visitor Auth, Security Rules & App Icons
 - [x] Google Sign-In: added `google_sign_in` (v7.2.0) with clean platform separation (`signInWithPopup` on Web, `GoogleSignIn.instance.initialize()` / `authenticate()` on Android), defensive error mapping, and silent cancellation.
@@ -257,6 +270,21 @@
     - Standard Web: `build/web` (41 MB)
     - Demo Web: `build/web-demo` (41 MB, built with `--no-web-resources-cdn` to bundle CanvasKit and static web resources locally)
   - Ran `dart format .`, `flutter analyze` (0 issues), and `flutter test` (all 323 tests passed).
+- 2026-11-15: Phase 6c (Automated & Demo Pre-Ventilation, FR-7) implemented:
+  - Formulated the pre-ventilation decision engine as a pure Dart function `evaluatePreventiveDecision` (`lib/features/forecast/preventive_decision.dart`) without Flutter dependencies. Enforces all 10 PRD gates: `allowPreventive` enabled, air quality residual gate `Active`, $R^2 \ge 0.3$, predicted peak $\ge 1400$ ADC, lead window $10 \le \Delta t \le 20\text{ min}$, device online ($\le 20\text{ min}$ since newest record), tier != Danger, physical fan idle, no trigger in flight, peak not already triggered today, and 6-hour cooldown.
+  - Implemented data layer support with immutable `ForecastPreferences` model (`lib/data/models/forecast_preferences.dart`) defensively parsing `/forecast` node from RTDB. Added `setAllowPreventive(bool)` and `requestPreventiveTrigger()` to `SystemRepository`. Enforced strict write safety: `requestPreventiveTrigger()` only ever writes `true` and never `false`, with zero auto-retries.
+  - Extended `FakeSystemRepository` with pre-ventilation cycle simulation (default 300 s), immediate decline handling when disallowed or busy (clearing trigger back to `false` without starting the fan), and Danger override cancellation.
+  - Established single-publisher architecture (`publishPreventiveTriggersProvider`) to prevent concurrent automated triggers across multiple clients. Local setting and execution timestamps (`lastTriggerTime`, `lastTriggeredPeakTime`) persist in `SharedPreferences`. Timer loops (30 s cadence) run only when publishing is enabled and cancel on dispose.
+  - Created `PreVentilationCard` on `ForecastScreen` with 4 UI states (Off, Armed, Running, Unavailable with specific reason). Team accounts see "Run pre-ventilation now (demo)" button with visible disabled reasons.
+  - Implemented 5-second decline detection in `RunPreVentilationNotifier`: if `preventiveTrigger` reverts to `false` within 5 seconds without starting the fan, displays floating SnackBar: "The device declined (permission off or busy)". Network or permission errors display "Could not send the request" and revert toggles.
+  - Added "Automated Pre-Ventilation (Team)" card to `SettingsScreen` visible strictly to team accounts.
+  - Expanded test suite from 323 to 379 tests (all passing cleanly, 0 analyzer issues, 0 formatting issues).
+- 2026-11-15: Phase 6c firmware-contract fidelity fix:
+  - Corrected `FakeSystemRepository` to match the real firmware lifecycle: `preventiveTrigger` stays `true` for the WHOLE run and is reset to `false` only when the run ends (previously the fake reset it at run start).
+  - Decline path now models the real handshake: the app's `true` write is briefly acknowledged as `preventiveTrigger = true`, then immediately reset to `false` without starting the fan (allowPreventive off, Danger, or fan busy). This keeps the 5 s decline detector working via a genuine `true→false` pulse.
+  - Duplicate trigger writes while a cycle is already running are ignored (no-op), matching firmware behaviour.
+  - Verified the decision engine still reports `PreventiveUiState.running` when `preventiveTrigger == true` (the whole run), and the card disables the demo button on trigger alone even if the fan state has not yet updated.
+  - Added tests: decline pulse sequence (`true→false`, fan never starts), accepted run keeps trigger `true`, `RunPreVentilationNotifier` decline message on real decline, no decline message on accepted run, and `PreVentilationCard` Running state driven by `preventiveTrigger = true` with fan still off. Suite now 383 tests, `flutter analyze` clean, `dart format` clean.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

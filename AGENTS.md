@@ -7,7 +7,7 @@ Flutter app (Android + Web) for the AeroSense IoT ventilation system. Reads live
 ## Non-negotiables
 
 1. **The firmware owns safety.** The ESP32 decides the tier and the fan state. The app never decides to run or stop the fan on its own authority and never implies it can override the Danger tier. The toggle is locked in Danger.
-2. **Write rules.** The only path the app writes is `/system/manualToggle` (bool), using `.set()` on that exact child. Never `set()` or `update()` the whole `/system` node. Never write `/history`.
+2. **Write rules.** The only paths the app writes are `/system/manualToggle = true` (timed manual ventilation request), `/forecast/allowPreventive` (bool: true or false, team settings opt-in only), and `/forecast/preventiveTrigger = true` (pre-ventilation cycle request). Nothing else. Never write `false` to a trigger (`manualToggle` or `preventiveTrigger`). Never `set()` or `update()` whole `/system` or `/forecast` nodes. Never write `/history`. No retries.
 3. **No invented data** in production code paths. Fake data exists only in Demo Mode (repository implementations under `data/repositories/fake_*`), and Demo Mode must show a visible ribbon.
 4. **Don't guess the data contract.** Field types and the `/history` timestamp format are marked CONFIRM in the PRD. Parse defensively, leave `// TODO(confirm)`, and ask me.
 5. **Thresholds live in one file** (`core/thresholds.dart`). Never hard-code 28 / 32 / 60 / 75 / 1000 / 2000 in widgets.

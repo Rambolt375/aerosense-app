@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aerosense_app/app.dart';
 import 'package:aerosense_app/core/theme_mode_provider.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
@@ -371,6 +372,16 @@ class _MockLiveSystemRepository implements SystemRepository {
 
   @override
   Future<void> requestManualVentilation() async {}
+
+  @override
+  Stream<ForecastPreferences> watchForecastPreferences() =>
+      const Stream.empty();
+
+  @override
+  Future<void> setAllowPreventive(bool allowed) async {}
+
+  @override
+  Future<void> requestPreventiveTrigger() async {}
 }
 
 class _MockLiveHistoryRepository implements HistoryRepository {

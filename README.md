@@ -46,9 +46,9 @@ Verify that `lib/firebase_options.dart` contains the `databaseURL` pointing to `
 > The Firebase configuration parameters in `firebase_options.dart` (such as `apiKey` and `appId`) identify the Firebase project on Google servers. In client-side web and mobile apps, these identifiers are embedded in public client code by design and are not secrets. Real security is enforced on the server by **Firebase Authentication** and **Realtime Database Security Rules** (`database.rules.json`).
 
 ### 3. User Authentication & Accounts
-- **Booth Visitors (Google Sign-In)**: Visitors authenticate instantly with "Continue with Google" without prior provisioning. They receive read-only access to view live telemetry and historical trends.
-- **Team Accounts (Email & Password)**: Team members must be provisioned in the **Firebase Console** (Authentication $\to$ Users $\to$ Add user). Use these credentials for administrative actions and manual ventilation control.
-  - *Important*: Team members who sign in with Google are visitors; the booth laptop must use the email/password team account to publish pre-ventilation.
+- **Booth Visitors (Google Sign-In)**: Visitors authenticate instantly with "Continue with Google" without prior provisioning. They receive read-only access to `/system`, `/history`, and `/forecast` per RTDB security rules (`database.rules.json`) and cannot write triggers or toggle pre-ventilation settings.
+- **Team Accounts (Email & Password)**: Team members must be provisioned in the **Firebase Console** (Authentication $\to$ Users $\to$ Add user). Use these credentials for administrative actions, manual ventilation requests, and automated pre-ventilation configuration.
+  - *Booth Laptop Publishing Role*: Only one device should publish automated pre-ventilation triggers. The booth laptop must sign in with the email/password team account and enable **"This device publishes pre-ventilation"** in Settings. Google sign-in accounts are treated as visitors and will not see or execute publishing options.
 - **Testing without credentials**: Click **Try Demo Mode** on the login screen to explore the app with simulated data.
 
 ### 4. Deploying RTDB Security Rules
@@ -158,7 +158,7 @@ firebase deploy --only hosting
 | `airQuality` | number (0–4095) | Raw 12-bit ADC reading from MQ-135 (relative index, uncalibrated). |
 | `fanStatus` | string / bool | `"ON"` / `"OFF"` reporting physical fan state. |
 | `statusMessage` | string | Firmware tier keyword (`SAFE`, `CAUTION`, `DANGER`). |
-| `manualToggle` | bool | **The only field written by the app.** App writes `true` only; firmware resets to `false`. |
+| `manualToggle` | bool | Written by app as `true` only for manual ventilation; firmware resets to `false`. |
 | `manualEndsAt` | number | Optional epoch seconds (UTC) target completion time for timed run. |
 
 ### 2. `/history` (Time-Series Archive, logged every 10 min by ESP32)
@@ -173,6 +173,12 @@ The app reads `/history` with `orderByKey().limitToLast(1008)` (7-day window at 
 ### 3. `/config` (Device Configuration)
 - `manualDurationSec`: Duration in seconds for a timed ventilation cycle (default: 300 s = 5 min).
 
+### 4. `/forecast` (Automated Pre-Ventilation, team opt-in & trigger)
+| Key | Type | Description |
+|---|---|---|
+| `allowPreventive` | bool | Written by app (`true`/`false`) from team Settings. Opts into automated pre-ventilation cycles ahead of predicted air quality peaks. |
+| `preventiveTrigger` | bool | **App writes `true` only.** Requests an automated pre-ventilation cycle from the ESP32. Firmware keeps it `true` for the **whole run** and resets it to `false` only when the run ends. If disallowed (allowPreventive off), in Danger, or fan busy, firmware resets it immediately without starting the fan. The app NEVER writes `false` and performs NO retries. |
+
 ---
 
 ## Diurnal Forecasting & Requirements
@@ -183,6 +189,37 @@ The client-side forecasting engine (`lib/features/forecast/`):
 3. **Data Requirements**: The mathematical fitter strictly requires **$\ge 48$ hours of continuous device uptime and history logs** with readings spanning at least **20 distinct hourly bins (0..23)**.
 4. Below 48 hours of history, the UI displays a calm progress indicator: *"Awaiting sufficient history data to fit 24-hour diurnal sinusoidal wave"*.
 5. In Demo Mode, a synthetic 7-day diurnal dataset (1008 points) is generated automatically to demonstrate the active forecast curve.
+
+### Automated Pre-Ventilation (Phase 6c)
+
+The companion app evaluates predictive pre-ventilation rules in a pure decision function (`evaluatePreventiveDecision` in `lib/features/forecast/preventive_decision.dart`):
+1. **Team Opt-In**: `/forecast/allowPreventive == true` in Firebase RTDB.
+2. **Model Confidence**: Air quality diurnal residual gate is `Active` (hysteresis verified, low live residual error).
+3. **Variance Explained**: $R^2 \ge 0.3$ on the 24-hour diurnal sinusoidal fit.
+4. **Stuffy Peak Threshold**: Predicted daily peak $\ge 1400$ ADC (the firmware Caution threshold).
+5. **Lead Window**: Current time is 10 to 20 minutes before the predicted peak ($10 \le \Delta t \le 20\text{ min}$).
+6. **Device Freshness**: Device is online (most recent `/history` record $\le 20$ minutes old).
+7. **Safety Precedence**: Room tier is NOT Danger (Danger locks the fan ON unconditionally).
+8. **Fan Idle**: Physical fan is not already running, no manual run is active, and no trigger is in flight.
+9. **Single Trigger Per Peak**: Exactly one pre-ventilation cycle is triggered per diurnal peak.
+10. **Cooldown**: Minimum 6 hours elapsed since the last pre-ventilation run.
+
+#### Publisher Role & Persistence
+- To avoid race conditions and redundant writes from multiple open tabs or phones, only the designated publisher device sends automated triggers.
+- In **Settings $\to$ Automated Pre-Ventilation (Team)**, enable **"This device publishes pre-ventilation"** on the booth laptop. This preference and the execution timestamps (`lastTriggerTime`, `lastTriggeredPeakTime`) are persisted in `SharedPreferences`.
+- When designated, an evaluation loop runs every 30 seconds and upon telemetry updates. If all 10 conditions pass, the app writes `/forecast/preventiveTrigger = true`.
+
+#### Run Lifecycle
+- An accepted trigger keeps `/forecast/preventiveTrigger = true` for the **entire run**. The firmware resets it to `false` only when the cycle ends, at which point the fan also stops.
+- While the trigger is `true`, the app reports **Running** and disables the demo button.
+
+#### Decline Detection
+- When a pre-ventilation request is submitted (or when clicking **Run pre-ventilation now (demo)**), the app monitors `/forecast/preventiveTrigger` and the fan state.
+- If the firmware resets `preventiveTrigger` back to `false` within 5 seconds without starting the fan, the app presents a floating SnackBar: *"The device declined (permission off or busy)"*.
+
+#### Demo Mode Behavior
+- In Demo Mode, the synthetic baseline stays clean and Safe ($< 1400$ ADC) so the automated path displays: *"Unavailable: predicted peak below stuffy threshold"*.
+- Team members can test pre-ventilation actuation using the **"Run pre-ventilation now (demo)"** button on the `ForecastScreen`.
 
 ---
 
@@ -237,7 +274,12 @@ To bundle Inter locally:
 
 ## Known Limitations & Firmware Notes
 
-- **Pre-ventilation / Predictive Fan Start**: Postponed pending firmware schema support. The app does not schedule automated unattended fan runs.
+- **Automated Pre-Ventilation (Phase 6c Firmware Integration)**:
+  - App client logic, pure decision engine, single-publisher designation, decline detection, and demo controls are implemented and tested.
+  - The firmware implementation of `/forecast/allowPreventive` and `/forecast/preventiveTrigger` is pending physical confirmation:
+    - `// TODO(confirm)`: Does firmware reset `/forecast/preventiveTrigger` to `false` immediately on boot?
+    - `// TODO(confirm)`: What is the exact cycle duration executed by firmware for pre-ventilation? (App assumes default 300 s, matching `/config/manualDurationSec`).
+    - Confirmed contract modelled in `FakeSystemRepository`: `preventiveTrigger` stays `true` for the whole run and is reset to `false` only when the run ends; on decline (allowPreventive off, Danger, or fan busy) the firmware resets it immediately without starting the fan. Still worth a hardware check.
 - **Air Quality Metric**: Raw 12-bit ADC value (0–4095) from MQ-135; uncalibrated relative index (never labeled ppm).
 - **Device Staleness Detection**: Without a dedicated `/system/lastSeen` field in firmware, device offline state is evaluated against the newest 10-minute `/history` record ($2\text{ missed cycles} = 20\text{ min}$).
 - **Single Room / Single Device**: Multi-room and HVAC mains control are out of scope for the companion app.

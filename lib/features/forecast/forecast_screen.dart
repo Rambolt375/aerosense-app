@@ -5,6 +5,7 @@ import 'package:aerosense_app/features/forecast/forecast_providers.dart';
 import 'package:aerosense_app/features/forecast/residual_gate.dart';
 import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
+import 'package:aerosense_app/features/forecast/widgets/preventive_card.dart';
 
 /// Diurnal forecasting screen (PRD §FR-6).
 ///
@@ -56,7 +57,11 @@ class ForecastScreen extends ConsumerWidget {
                   const ForecastStatusCard(),
                   const SizedBox(height: 16),
 
-                  // 2. Metric Details Cards using each metric's own gate status
+                  // 2. Pre-Ventilation Card (FR-7)
+                  const PreVentilationCard(),
+                  const SizedBox(height: 16),
+
+                  // 3. Metric Details Cards using each metric's own gate status
                   _buildMetricDetailCard(
                     context: context,
                     title: 'Temperature model',

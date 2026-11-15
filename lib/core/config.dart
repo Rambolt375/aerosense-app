@@ -54,4 +54,19 @@ class AppConfig {
 
   /// Confirmation timeout waiting for firmware to echo manualToggle (5 seconds).
   static const Duration manualToggleConfirmTimeout = Duration(seconds: 5);
+
+  /// Minimum lead time ahead of predicted peak for pre-ventilation (10 minutes).
+  // TODO(confirm): 10-20 minute pre-ventilation window is planned firmware alignment.
+  static const Duration preventiveLeadTimeMin = Duration(minutes: 10);
+
+  /// Maximum lead time ahead of predicted peak for pre-ventilation (20 minutes).
+  // TODO(confirm): 10-20 minute pre-ventilation window is planned firmware alignment.
+  static const Duration preventiveLeadTimeMax = Duration(minutes: 20);
+
+  /// Target planned run time ahead of predicted peak (15 minutes).
+  static const Duration preventiveLeadTimeTarget = Duration(minutes: 15);
+
+  /// Minimum cooldown between successive automated pre-ventilation triggers (6 hours).
+  // TODO(confirm): firmware cooldown period between triggers.
+  static const Duration preventiveCooldown = Duration(hours: 6);
 }

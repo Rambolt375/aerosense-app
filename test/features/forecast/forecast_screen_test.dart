@@ -12,6 +12,7 @@ import 'package:aerosense_app/features/forecast/residual_gate.dart';
 import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/sinusoidal_fit.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
+import 'package:aerosense_app/features/forecast/widgets/preventive_card.dart';
 
 void main() {
   Widget buildTestApp({List<dynamic> overrides = const []}) {
@@ -35,13 +36,19 @@ void main() {
 
   group('ForecastScreen & ForecastStatusCard Widget Tests', () {
     testWidgets(
-      'renders ForecastScreen with ForecastStatusCard and model cards',
+      'renders ForecastScreen with ForecastStatusCard, PreVentilationCard, and model cards',
       (tester) async {
+        tester.view.physicalSize = const Size(800, 1600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+
         await tester.pumpWidget(buildTestApp());
         await tester.pumpAndSettle();
 
         expect(find.text('Diurnal Forecast'), findsOneWidget);
         expect(find.byType(ForecastStatusCard), findsOneWidget);
+        expect(find.byType(PreVentilationCard), findsOneWidget);
         expect(find.text('Temperature model'), findsOneWidget);
         expect(find.text('Air quality model'), findsOneWidget);
         expect(find.text('Forecast status'), findsOneWidget);

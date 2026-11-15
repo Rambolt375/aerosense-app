@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/thresholds.dart';
+import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/fake_diurnal_generator.dart';
@@ -91,6 +92,10 @@ class FakeSystemRepository implements SystemRepository {
   DateTime? _manualToggleExpiresAt;
   DateTime? _manualEndsAt;
   Timer? _autoResetTimer;
+  bool _allowPreventive = false;
+  bool _preventiveTrigger = false;
+  DateTime? _preventiveExpiresAt;
+  Timer? _preventiveTimer;
   bool _fanOn = false;
   bool _dangerLatched = false;
   String _statusMessage = statusSafe;
@@ -104,6 +109,7 @@ class FakeSystemRepository implements SystemRepository {
   late final StreamController<SystemState> _stateController;
   late final StreamController<Object?> _rawController;
   late final StreamController<Map<String, dynamic>?> _configController;
+  late final StreamController<ForecastPreferences> _forecastController;
   Timer? _tickerTimer;
   int _listenerCount = 0;
   bool _isDisposed = false;
@@ -120,6 +126,8 @@ class FakeSystemRepository implements SystemRepository {
   double get currentAirQuality => _airQuality;
   bool? get rawManualToggle => _manualToggle;
   DateTime? get currentManualEndsAt => _manualEndsAt;
+  bool get currentAllowPreventive => _allowPreventive;
+  bool get currentPreventiveTrigger => _preventiveTrigger;
   bool get currentFanOn => _fanOn;
   bool get currentDangerLatched => _dangerLatched;
   String get currentStatusMessage => _statusMessage;
@@ -135,6 +143,7 @@ class FakeSystemRepository implements SystemRepository {
       onCancel: _onCancel,
     );
     _configController = StreamController<Map<String, dynamic>?>.broadcast();
+    _forecastController = StreamController<ForecastPreferences>.broadcast();
   }
 
   void _onListen() {
@@ -179,6 +188,10 @@ class FakeSystemRepository implements SystemRepository {
       _manualEndsAt = null;
       _autoResetTimer?.cancel();
       _autoResetTimer = null;
+      _preventiveTrigger = false;
+      _preventiveExpiresAt = null;
+      _preventiveTimer?.cancel();
+      _preventiveTimer = null;
     } else if (_tier == Tier.safe) {
       // Danger latch clears strictly when room returns all the way to Safe
       _dangerLatched = false;
@@ -193,12 +206,12 @@ class FakeSystemRepository implements SystemRepository {
         if (_dangerLatched) {
           _fanOn = true;
         } else {
-          _fanOn = _manualToggle ?? false;
+          _fanOn = (_manualToggle ?? false) || _preventiveTrigger;
         }
         _statusMessage = statusCaution;
         break;
       case Tier.safe:
-        _fanOn = false;
+        _fanOn = _preventiveTrigger;
         _statusMessage = statusSafe;
         break;
     }
@@ -272,6 +285,17 @@ class FakeSystemRepository implements SystemRepository {
       _manualToggle = false;
       _manualToggleExpiresAt = null;
       _manualEndsAt = null;
+    }
+
+    // Check preventive trigger timed auto-reset
+    if (_preventiveTrigger &&
+        _preventiveExpiresAt != null &&
+        !_clock().isBefore(_preventiveExpiresAt!)) {
+      _preventiveTrigger = false;
+      _preventiveExpiresAt = null;
+      _preventiveTimer?.cancel();
+      _preventiveTimer = null;
+      _emitForecastPreferences();
     }
 
     switch (_scenario) {
@@ -430,6 +454,10 @@ class FakeSystemRepository implements SystemRepository {
     _manualToggleExpiresAt = null;
     _autoResetTimer?.cancel();
     _autoResetTimer = null;
+    _preventiveTrigger = false;
+    _preventiveExpiresAt = null;
+    _preventiveTimer?.cancel();
+    _preventiveTimer = null;
     final sample = generateDiurnalSample(
       _clock(),
       random: _random,
@@ -440,6 +468,7 @@ class FakeSystemRepository implements SystemRepository {
     _airQuality = sample.airQuality;
     _recomputeState();
     _emitCurrentState();
+    _emitForecastPreferences();
   }
 
   // --- SystemRepository overrides ---
@@ -460,6 +489,88 @@ class FakeSystemRepository implements SystemRepository {
   Stream<Map<String, dynamic>?> watchConfig() {
     scheduleMicrotask(_emitConfig);
     return _configController.stream;
+  }
+
+  @override
+  Stream<ForecastPreferences> watchForecastPreferences() {
+    scheduleMicrotask(_emitForecastPreferences);
+    return _forecastController.stream;
+  }
+
+  void _emitForecastPreferences() {
+    if (_isDisposed) return;
+    if (_forecastController.hasListener) {
+      _forecastController.add(
+        ForecastPreferences(
+          allowPreventive: _allowPreventive,
+          preventiveTrigger: _preventiveTrigger,
+        ),
+      );
+    }
+  }
+
+  @override
+  Future<void> setAllowPreventive(bool allowed) async {
+    _allowPreventive = allowed;
+    _emitForecastPreferences();
+  }
+
+  @override
+  Future<void> requestPreventiveTrigger() async {
+    // If a cycle is already running, the firmware ignores the duplicate write.
+    if (_preventiveTrigger) return;
+
+    // Firmware decline: allowPreventive is false, Danger tier, or manual fan busy.
+    // The real firmware sees preventiveTrigger = true (written by app), then
+    // immediately resets it back to false without starting the fan.
+    final decline =
+        !_allowPreventive || _tier == Tier.danger || _manualToggle == true;
+
+    if (decline) {
+      // Briefly acknowledge the write as true so the decline-detection stream
+      // subscriber sees true→false without fan starting.
+      _preventiveTrigger = true;
+      _emitForecastPreferences();
+
+      _preventiveTrigger = false;
+      _preventiveExpiresAt = null;
+      _preventiveTimer?.cancel();
+      _preventiveTimer = null;
+      _recomputeState();
+      _emitCurrentState();
+      _emitForecastPreferences();
+      return;
+    }
+
+    // Start preventive run for fixed duration (autoResetDuration, 5 min default).
+    // Trigger stays true for the WHOLE run; firmware resets to false only when done.
+    _preventiveTrigger = true;
+    _preventiveExpiresAt = _clock().add(autoResetDuration);
+    _preventiveTimer?.cancel();
+    _preventiveTimer = Timer(autoResetDuration, () {
+      if (_preventiveTrigger && !_isDisposed) {
+        _preventiveTrigger = false;
+        _preventiveExpiresAt = null;
+        _preventiveTimer = null;
+        _recomputeState();
+        _emitCurrentState();
+        _emitForecastPreferences();
+      }
+    });
+    _recomputeState();
+    _emitCurrentState();
+    _emitForecastPreferences();
+  }
+
+  /// Defensive implementation for tests.
+  ///
+  /// Per confirmed firmware behavior, writing false does NOT cancel a running cycle.
+  Future<void> setPreventiveTrigger(bool value) async {
+    if (!value) {
+      // Persistent against false: writing false will NOT stop it
+      return;
+    }
+    return requestPreventiveTrigger();
   }
 
   @override
@@ -511,8 +622,10 @@ class FakeSystemRepository implements SystemRepository {
     _isDisposed = true;
     _stopTicker();
     _autoResetTimer?.cancel();
+    _preventiveTimer?.cancel();
     _stateController.close();
     _rawController.close();
     _configController.close();
+    _forecastController.close();
   }
 }
