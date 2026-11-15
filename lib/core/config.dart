@@ -9,6 +9,12 @@ class AppConfig {
   /// Accounts are managed in Firebase Console by default.
   static const bool allowSignUp = false;
 
+  /// Whether the "Ask AeroSense" assistant action is exposed in the UI.
+  ///
+  /// Stays false until slice 7b-3 wires Firebase AI Logic and App Check. The
+  /// deterministic "Summarize" action is independent and always available.
+  static const bool assistantEnabled = false;
+
   /// Regional Realtime Database URL for asia-southeast1.
   static const String databaseUrl =
       'https://aerosense-502de-default-rtdb.asia-southeast1.firebasedatabase.app';

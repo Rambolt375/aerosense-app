@@ -77,6 +77,24 @@ class AppStrings {
   static const forecastLearning =
       'Awaiting sufficient history data to fit 24-hour diurnal sinusoidal wave.';
 
+  // Summary & Assistant Entry (Phase 7b)
+  static const askAboutRoomTitle = 'Ask about this room';
+  static const askAboutRoomBody =
+      'Get a plain-language description of what the device reports right now.';
+  static const summarize = 'Summarize';
+  static const askAeroSense = 'Ask AeroSense';
+  static const summaryTitle = 'Summary';
+  static const languageEnglish = 'English';
+  static const languageIndonesia = 'Indonesia';
+  static const summaryCopy = 'Copy';
+  static const summaryCopied = 'Summary copied';
+  static const summaryDisclaimer =
+      'This describes what the device reports. The device decides safety.';
+  static const summaryNoDataTitle = 'No reading yet';
+  static const summaryNoDataBody =
+      'Wait for the first telemetry from the device, then try again.';
+  static const summaryClose = 'Close';
+
   // Accessibility Announcements
   static const semanticsVentilationStarted = 'Ventilation started';
   static const semanticsVentilationEnded = 'Ventilation ended';

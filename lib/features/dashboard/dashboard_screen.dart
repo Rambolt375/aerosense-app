@@ -6,6 +6,7 @@ import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
+import 'package:aerosense_app/features/dashboard/widgets/ask_about_room_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/fan_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
@@ -116,6 +117,10 @@ class _DashboardContent extends StatelessWidget {
 
         // Fan card
         const FanCard(),
+        const SizedBox(height: 24),
+
+        // Deterministic summary entry (Phase 7b-1)
+        const AskAboutRoomCard(),
         if (kDebugMode) ...[
           const SizedBox(height: 24),
           Center(

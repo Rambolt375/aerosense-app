@@ -17,6 +17,7 @@ class ThresholdPreset {
     required this.humidityDangerMin,
     this.airQualityAdcMax = 4095.0,
     this.useHumidity = true,
+    this.humidityConfirmedByFirmware = false,
   });
 
   final String name;
@@ -51,6 +52,14 @@ class ThresholdPreset {
   // TODO(confirm): set false if firmware confirms humidity is not used.
   final bool useHumidity;
 
+  /// Whether the firmware owner confirmed that the device uses these humidity
+  /// limits in its own tier decision.
+  ///
+  /// Until this is true the summary must not present humidity limits as
+  /// firmware thresholds. Kept separate from [useHumidity] because the app's
+  /// fallback calculation and the firmware's decision are different things.
+  final bool humidityConfirmedByFirmware;
+
   /// Confirmed firmware thresholds.
   static const ThresholdPreset firmware = ThresholdPreset(
     name: 'firmware',
@@ -62,6 +71,8 @@ class ThresholdPreset {
     humidityCautionMin: 60.0, // TODO(confirm)
     humidityDangerMin: 75.0, // TODO(confirm)
     useHumidity: true,
+    // TODO(confirm): firmware owner has not confirmed humidity tier logic.
+    humidityConfirmedByFirmware: false,
   );
 
   /// Demo slot with earlier PRD / testing values.
@@ -75,6 +86,8 @@ class ThresholdPreset {
     humidityCautionMin: 60.0, // TODO(confirm)
     humidityDangerMin: 75.0, // TODO(confirm)
     useHumidity: true,
+    // TODO(confirm): demo preset mirrors the unconfirmed firmware state.
+    humidityConfirmedByFirmware: false,
   );
 
   /// Defensively parses `/config/thresholds` JSON from RTDB, falling back to firmware preset.
@@ -127,6 +140,12 @@ class ThresholdPreset {
 
     final useHum = (json['useHumidity'] as bool?) ?? firmware.useHumidity;
 
+    // Only a literal true from a future confirmed config enables this.
+    final humidityConfirmed =
+        (json['humidityConfirmedByFirmware'] as bool?) ??
+        (json['humidityConfirmed'] as bool?) ??
+        false;
+
     return ThresholdPreset(
       name: (json['name'] as String?) ?? 'custom',
       tempCautionMin: tc,
@@ -137,6 +156,7 @@ class ThresholdPreset {
       humidityCautionMin: hc,
       humidityDangerMin: hd,
       useHumidity: useHum,
+      humidityConfirmedByFirmware: humidityConfirmed,
     );
   }
 }
@@ -185,4 +205,8 @@ class Thresholds {
 
   /// Whether humidity is evaluated in fallback tier determination.
   static bool get useHumidity => current.useHumidity;
+
+  /// Whether firmware confirmed that humidity limits affect its tier decision.
+  static bool get humidityConfirmedByFirmware =>
+      current.humidityConfirmedByFirmware;
 }

@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 6c (✅ COMPLETE — Automated & demo pre-ventilation decision engine, single-publisher designation, firmware decline handling, PreVentilationCard, and settings controls; awaiting review)
+> **Current phase:** 7b-1 (✅ COMPLETE — Deterministic offline "Summarize" builder, EN/ID sheet, and dashboard entry; awaiting review. 7b-2 assistant UI and 7b-3 Firebase AI Logic not started.)
 
 ## Blockers / open questions (owner: human)
 
@@ -161,6 +161,24 @@
 - [x] Documentation: updated `README.md` with visitor vs. team account distinction and pre-ventilation note.
 - [x] Tests passing, `flutter analyze` clean (0 issues)
 
+## Phase 7b-1: Deterministic summary (Summary)
+- [x] Pure Dart summary models (`lib/features/summary/summary_models.dart`): language, device/forecast/history states, `SummaryInput`, sections, `SummaryResult.plainText`.
+- [x] `computeHistoryStats24h`: timestamped records only inside `[now-24h, now]`, per-metric validation (including DHT22 0/0), min/max/mean, sample count, earliest timestamp, sparse flag. No estimation from synthetic time axes.
+- [x] `buildSummary`: always quotes the firmware tier; bare keywords (`SAFE`/`CAUTION`/`MEDIUM`/`NORMAL`/`DANGER`) are not quoted, descriptive messages are; estimated-tier wording when the device sent no tier; no safety advice and no fan instruction.
+- [x] Thresholds come from the injected `ThresholdPreset`; air quality is always an uncalibrated 0–4095 index and the only `ppm` mention is the "not ppm" unit note.
+- [x] Humidity is never presented as a firmware threshold: new `ThresholdPreset.humidityConfirmedByFirmware` (default false) drives "Humidity thresholds: not used by the device yet."
+- [x] Offline device ("Last data at HH:mm" / unknown time), app-offline line, null readings ("no reading"), empty history, loading/unavailable history, and sparse history all have distinct copy.
+- [x] Forecast peaks labelled "Predicted ... peak around HH:mm" only when the model has a clear daily pattern; locked out, learning (with progress), waiting-for-timestamps, and unavailable states covered.
+- [x] Full English and Indonesian copy in `summary_copy.dart`; tier words stay canonical in both languages. Device locale `id` defaults the sheet to Indonesian, otherwise English.
+- [x] Riverpod adapters (`summary_providers.dart`): `deviceLocaleProvider`, `summaryLanguageProvider`, `summaryInputProvider` (null before the first `/system` snapshot), `summaryResultProvider` (applies the selected language). No extra RTDB reads; stats reuse the already-loaded history.
+- [x] `SummarySheet`: language `SegmentedButton`, scrollable content, copy button with `Summary copied` snackbar, fixed disclaimer, no-data state, max width 640, 360 px / 1.3x safe.
+- [x] `AskAboutRoomCard` on the Dashboard under the fan card with the Summarize action; the fan button remains the single primary action. The Ask AeroSense action is intentionally absent until 7b-2 and is gated by `AppConfig.assistantEnabled` (false).
+- [x] `AppConfig.assistantEnabled = false` added for later slices.
+- [x] Tests: builder (EN/ID, Danger, bare vs descriptive, estimated tier, nulls, offline, empty/loading/unavailable/sparse history, humidity confirmed flag, preset-driven thresholds, forecast states, no ppm, no advice), history stats, sheet (language switch, clipboard, disclaimer, no-data, 360 px / 1.3x), and dashboard card (Summarize opens sheet, Ask hidden).
+- [x] `dart format .`, `flutter analyze` clean, `flutter test` all passing (427 tests).
+- [ ] Phase 7b-2: assistant route, prompt builder, rate limiter, demo repository, chips, disclaimer, privacy line.
+- [ ] Phase 7b-3: `firebase_ai` + `firebase_app_check`, live repository, App Check activation, end-to-end check.
+
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).
 - 2026-11-07: SDK constraint `sdk: ^3.13.7` preserved as created by Flutter SDK 3.47.9.
@@ -285,6 +303,13 @@
   - Duplicate trigger writes while a cycle is already running are ignored (no-op), matching firmware behaviour.
   - Verified the decision engine still reports `PreventiveUiState.running` when `preventiveTrigger == true` (the whole run), and the card disables the demo button on trigger alone even if the fan state has not yet updated.
   - Added tests: decline pulse sequence (`true→false`, fan never starts), accepted run keeps trigger `true`, `RunPreVentilationNotifier` decline message on real decline, no decline message on accepted run, and `PreVentilationCard` Running state driven by `preventiveTrigger = true` with fan still off. Suite now 383 tests, `flutter analyze` clean, `dart format` clean.
+- 2026-11-15: Phase 7b plan approved and saved to `docs/phase-7b-plan.md`; slice 7b-1 implemented.
+  - Android App Check decision: debug-token build for team devices only (never distributed); visitors use the web build for the live assistant. `AppConfig.assistantEnabled` keeps the Ask action hidden until App Check is active. Summarize always works.
+  - Model decision: `gemini-3.8-flash` with `gemini-3.5-flash-lite` as a one-line fallback constant; last 4 messages; assistant language follows the same EN/ID selector, defaulting to Indonesian only when the device locale is Indonesian.
+  - Summary rules: bare tier keywords print `Firmware tier: X` without a quote; descriptive messages are quoted; humidity reads "not used by the device yet" until the preset's confirmation flag is true; forecast peaks use "Predicted ... peak around HH:mm".
+  - Added `ThresholdPreset.humidityConfirmedByFirmware` (default false) and `Thresholds.humidityConfirmedByFirmware`; `fromJson` accepts `humidityConfirmedByFirmware` or `humidityConfirmed` only as a literal `true`.
+  - The sheet computes the summary lazily on open and reuses already-loaded history; no new dependencies, no Firebase AI calls, no network required.
+  - Test suite now 427 tests, `flutter analyze` clean, `dart format` clean.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.
