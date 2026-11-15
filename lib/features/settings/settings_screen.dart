@@ -55,20 +55,36 @@ class SettingsScreen extends ConsumerWidget {
                             ButtonSegment(
                               value: ThemeMode.system,
                               icon: Icon(Icons.brightness_auto_outlined),
-                              label: Text('System'),
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('System', maxLines: 1),
+                              ),
                             ),
                             ButtonSegment(
                               value: ThemeMode.light,
                               icon: Icon(Icons.light_mode_outlined),
-                              label: Text('Light'),
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Light', maxLines: 1),
+                              ),
                             ),
                             ButtonSegment(
                               value: ThemeMode.dark,
                               icon: Icon(Icons.dark_mode_outlined),
-                              label: Text('Dark'),
+                              label: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text('Dark', maxLines: 1),
+                              ),
                             ),
                           ],
                           selected: {currentThemeMode},
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            padding: WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                          ),
                           onSelectionChanged: (newSelection) {
                             ref
                                 .read(themeModeProvider.notifier)

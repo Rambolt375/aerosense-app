@@ -97,6 +97,14 @@ class MetricTile extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 24,
+            width: double.infinity,
+            child: CustomPaint(
+              painter: _MetricSparklinePainter(color: colorScheme.primary),
+            ),
+          ),
           if (caption != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -110,6 +118,51 @@ class MetricTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _MetricSparklinePainter extends CustomPainter {
+  const _MetricSparklinePainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withValues(alpha: .72)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(0, size.height * .72)
+      ..quadraticBezierTo(
+        size.width * .18,
+        size.height,
+        size.width * .35,
+        size.height * .55,
+      )
+      ..quadraticBezierTo(
+        size.width * .58,
+        size.height * .15,
+        size.width * .72,
+        size.height * .48,
+      )
+      ..quadraticBezierTo(
+        size.width * .88,
+        size.height * .7,
+        size.width,
+        size.height * .22,
+      );
+    canvas.drawPath(path, paint);
+    canvas.drawCircle(
+      Offset(size.width, size.height * .22),
+      3,
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _MetricSparklinePainter oldDelegate) =>
+      oldDelegate.color != color;
 }
 
 /// Individual metric tier badge: colored dot + tier name (e.g. "Safe").

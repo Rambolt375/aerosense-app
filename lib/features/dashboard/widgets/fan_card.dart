@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/strings.dart';
+import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
@@ -182,20 +183,15 @@ class _FanCardContent extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row: fan icon + sentence case status ("Fan on" / "Fan off")
           Row(
             children: [
-              Icon(
-                state.fanOn ? Icons.toys_outlined : Icons.mode_fan_off_outlined,
-                size: 24,
-                color: colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 12),
+              Icon(Icons.toys_outlined, size: 20, color: colorScheme.primary),
+              const SizedBox(width: 8),
               Text(
-                state.fanOn ? AppStrings.fanOn : AppStrings.fanOff,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurface,
-                  fontVariations: [const FontVariation('wght', 600)],
+                'VENTILATION SYSTEM',
+                style: theme.textTheme.labelSmall?.copyWith(
+                  letterSpacing: 1,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
               const Spacer(),
@@ -210,7 +206,42 @@ class _FanCardContent extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer.withValues(alpha: .45),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  state.fanOn
+                      ? Icons.toys_outlined
+                      : Icons.power_settings_new_outlined,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        state.fanOn ? AppStrings.fanOn : AppStrings.fanOff,
+                        style: theme.textTheme.titleMedium,
+                      ),
+                      Text(
+                        'Firmware safety rules remain in control.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                _FanStatePill(active: state.fanOn),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // Primary action button
           SizedBox(
@@ -247,6 +278,31 @@ class _FanCardContent extends StatelessWidget {
       manualDuration: manualDuration,
     );
     return Text(label);
+  }
+}
+
+class _FanStatePill extends StatelessWidget {
+  const _FanStatePill({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? context.tierColors.safe
+        : Theme.of(context).colorScheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        active ? 'RUNNING' : 'STANDBY',
+        style: Theme.of(context).textTheme.labelSmall
+            ?.copyWith(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
   }
 }
 

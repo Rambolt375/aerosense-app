@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
@@ -25,17 +26,33 @@ class DashboardScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: connected.when(
-              data: (c) => ConnectionChip(isConnected: c),
-              loading: () => const ConnectionChip(isConnected: false),
-              error: (_, _) => const ConnectionChip(isConnected: false),
+        title: const Text('AeroSense'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(34),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                Text(
+                  'LIVE ENVIRONMENT',
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                connected.when(
+                  data: (c) => ConnectionChip(isConnected: c),
+                  loading: () => const ConnectionChip(isConnected: false),
+                  error: (_, _) => const ConnectionChip(isConnected: false),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
       body: systemState.when(
         skipLoadingOnReload: true,
@@ -68,12 +85,23 @@ class _DashboardContent extends StatelessWidget {
     Widget content = ListView(
       padding: EdgeInsets.all(padding),
       children: [
+        _NodeConnectionCard(isDeviceOffline: isDeviceOffline),
+        const SizedBox(height: 24),
+        Text('Telemetry Readout', style: theme.textTheme.titleLarge),
+        const SizedBox(height: 2),
+        Text(
+          'Real-time IAQ metrics & ambient comfort',
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 16),
         // Live tier banner or Device Offline notice
         if (isDeviceOffline)
           _buildOfflineBanner(context, theme)
         else
           TierBanner(tier: state.tier, statusMessage: state.statusMessage),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
 
         // Metric tiles (dimmed when device is offline)
         Opacity(
@@ -151,6 +179,117 @@ class _DashboardContent extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NodeConnectionCard extends StatelessWidget {
+  const _NodeConnectionCard({required this.isDeviceOffline});
+
+  final bool isDeviceOffline;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final online = !isDeviceOffline;
+    final statusColor = online
+        ? context.tierColors.safe
+        : theme.colorScheme.onSurfaceVariant;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.router_outlined,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('ESP32 Node 01', style: theme.textTheme.titleMedium),
+                      Text(
+                        'AeroSense ventilation controller',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                _StatusPill(
+                  label: online ? 'Connected' : 'Offline',
+                  color: statusColor,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                Icon(
+                  Icons.sync,
+                  size: 15,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                Text('Live Firebase stream', style: theme.textTheme.labelSmall),
+                Icon(Icons.wifi, size: 15, color: statusColor),
+                Text(
+                  online ? 'Online' : 'Unavailable',
+                  style: theme.textTheme.labelSmall,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .12),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelSmall
+                ?.copyWith(color: color, fontWeight: FontWeight.w700),
           ),
         ],
       ),
