@@ -262,7 +262,10 @@ class AppShellScaffold extends ConsumerWidget {
       bottomNavigationBar: NavigationBar(
         height: 68,
         backgroundColor: Theme.of(context).colorScheme.surface,
-        indicatorColor: Colors.transparent,
+        // Keep the M3 indicator: the selected icon is painted with
+        // onSecondaryContainer (near-black navy here), so a transparent
+        // indicator leaves it invisible on the dark surface and diverges
+        // from NavigationRail's selected state.
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _onDestinationSelected,
         destinations: const [
