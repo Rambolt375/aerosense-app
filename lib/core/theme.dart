@@ -173,14 +173,15 @@ class AeroSenseTheme {
   static const String fontFamily = 'Inter';
 
   // --- Light Palette Tokens ---
-  static const Color _lightBackground = Color(0xFFF6F8FA);
+  // Stitch reference palette: cool white surfaces, cyan-blue controls, navy text.
+  static const Color _lightBackground = Color(0xFFF8F9FF);
   static const Color _lightSurface = Color(0xFFFFFFFF);
-  static const Color _lightOutline = Color(0xFFD5DDE5);
-  static const Color _lightTextPrimary = Color(0xFF0F1B2A);
-  static const Color _lightTextSecondary = Color(0xFF4F5F6F);
-  static const Color _lightPrimary = Color(0xFF1D5FA7);
+  static const Color _lightOutline = Color(0xFFBEC8CE);
+  static const Color _lightTextPrimary = Color(0xFF0B1C30);
+  static const Color _lightTextSecondary = Color(0xFF3E484D);
+  static const Color _lightPrimary = Color(0xFF006783);
   static const Color _lightOnPrimary = Color(0xFFFFFFFF);
-  static const Color _lightPrimaryContainer = Color(0xFFE4EEF9);
+  static const Color _lightPrimaryContainer = Color(0xFFBCE9FF);
 
   // --- Dark Palette Tokens ---
   static const Color _darkBackground = Color(0xFF0B131B);
@@ -299,11 +300,11 @@ class AeroSenseTheme {
       scaffoldBackgroundColor: _lightBackground,
       textTheme: textTheme,
       cardTheme: const CardThemeData(
-        elevation: 0,
+        elevation: 1,
+        shadowColor: Color(0x140B1C30),
         color: _lightSurface,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          side: BorderSide(color: _lightOutline, width: 1),
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),

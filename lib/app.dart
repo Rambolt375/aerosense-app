@@ -260,6 +260,9 @@ class AppShellScaffold extends ConsumerWidget {
     return Scaffold(
       body: content,
       bottomNavigationBar: NavigationBar(
+        height: 68,
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        indicatorColor: Colors.transparent,
         selectedIndex: navigationShell.currentIndex,
         onDestinationSelected: _onDestinationSelected,
         destinations: const [
