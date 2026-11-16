@@ -120,7 +120,11 @@ String buildSystemInstruction(
   final languageLine = languageHint == SummaryLanguage.id
       ? 'Answer in Indonesian (Bahasa Indonesia).'
       : 'Answer in English.';
-  final data = const JsonEncoder.withIndent('  ').convert(summaryJson);
+  // Escape "<" so device-provided text (for example status_message) can never
+  // close the <device_data> block early or smuggle in tags.
+  final data = const JsonEncoder.withIndent('  ')
+      .convert(summaryJson)
+      .replaceAll('<', '&lt;');
 
   return <String>[
     'You are the AeroSense room assistant for a small exhibition booth.',

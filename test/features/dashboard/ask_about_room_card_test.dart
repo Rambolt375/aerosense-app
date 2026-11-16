@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/core/thresholds.dart';
@@ -53,8 +52,6 @@ void main() {
   testWidgets('hides the assistant action while it is not enabled', (
     tester,
   ) async {
-    expect(AppConfig.assistantEnabled, isFalse);
-
     await tester.pumpWidget(harness());
 
     expect(find.text(AppStrings.roomSummaryTitle), findsOneWidget);

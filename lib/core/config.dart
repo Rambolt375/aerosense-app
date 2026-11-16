@@ -9,13 +9,33 @@ class AppConfig {
   /// Accounts are managed in Firebase Console by default.
   static const bool allowSignUp = false;
 
-  /// Whether the "Ask AeroSense" assistant action is exposed in the UI.
-  ///
-  /// Stays false until slice 7b-3 wires Firebase AI Logic and App Check. The
-  /// deterministic "Summarize" action is independent and always available.
-  static const bool assistantEnabled = false;
-
   // --- Ask AeroSense assistant (Phase 7b) ---
+
+  /// Stable Gemini model for the live assistant (no billing required).
+  static const String assistantModel = 'gemini-3.8-flash';
+
+  /// One-line fallback used only when the primary model itself is unavailable.
+  ///
+  /// Quota, network and blocked failures never fall back: a second request
+  /// would spend quota on a failure the fallback cannot fix.
+  static const String assistantFallbackModel = 'gemini-3.5-flash-lite';
+
+  /// Output cap per answer (the prompt asks for under ~120 words).
+  static const int assistantMaxOutputTokens = 400;
+
+  /// Low sampling temperature: the assistant explains given facts, it does not
+  /// brainstorm.
+  static const double assistantTemperature = 0.3;
+
+  /// reCAPTCHA Enterprise site key for web App Check.
+  ///
+  /// Public value supplied at build time:
+  /// `flutter build web --dart-define=APPCHECK_RECAPTCHA_SITE_KEY=...`.
+  /// Empty means App Check is not configured for this build, and the assistant
+  /// stays hidden instead of shipping an unprotected live path.
+  static const String appCheckRecaptchaSiteKey = String.fromEnvironment(
+    'APPCHECK_RECAPTCHA_SITE_KEY',
+  );
 
   /// Maximum input length for one visitor question.
   static const int assistantMaxInputChars = 300;

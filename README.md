@@ -148,6 +148,79 @@ firebase deploy --only hosting
 
 ---
 
+## Ask AeroSense (Firebase AI Logic + App Check)
+
+The live assistant is the only networked AI feature. It sends **one question** at a time to
+`gemini-3.8-flash` (fallback constant `gemini-3.5-flash-lite`) through Firebase AI Logic, with the
+deterministic summary as the system instruction and no tools. It is hidden unless **all** of these
+hold: App Check activated, a user signed in, and Demo Mode off. "Summarize" always works offline.
+
+### Console setup (one-time, human)
+
+1. **AI Services → AI Logic → Get started → Gemini Developer API.** The app calls
+   `FirebaseAI.googleAI()`; the Agent Platform (Vertex) backend needs other project setup.
+2. **Security → App Check → APIs → Firebase AI Logic:** baseline protection **Enforced**.
+   Enforcement is mandatory for AI Logic since 2 November 2026; unenforced requests get
+   `403 PERMISSION_DENIED`. Keep replay protection **disabled** for now (it would demand
+   limited-use tokens, which this build does not request).
+3. **App Check → Apps → Web:** register the web app with **reCAPTCHA Enterprise**, add the hosting
+   domains *and* `localhost`, and copy the public **site key**.
+4. **App Check → Apps → Android:** register **Play Integrity** for release APKs. Team-only debug
+   builds use the debug provider instead.
+5. **AI Logic → Settings → authenticated-users mode:** turn it on. Every visitor signs in, so
+   anonymous requests should fail with `401` instead of spending project quota. The assistant's
+   client limiter is advisory; this plus the per-user rate limit (AI Logic → Settings → rate limits,
+   currently 100 requests/min per user by default) is the real ceiling.
+6. **AI Logic → Settings → AI monitoring:** enabling it is what gives request counts, latency and
+   error dashboards. Sampling rate (**1–100 %**, default 100 %) controls how many traces are stored,
+   and sampled prompts/responses are written to Cloud Logging. For a public booth, lower the sampling
+   rate and/or add the documented exclusion filter
+   (`resource.type="firebasevertexai.googleapis.com/Model"`) so visitor questions are not retained.
+
+### Web build (site key from a define, never hard-coded)
+
+```bash
+flutter build web --release \
+  --dart-define=APPCHECK_RECAPTCHA_SITE_KEY=6LfVFSEuAAAAAFBCJCbrInR__4yjifOBCxS7JGtA
+tool/check_web_release_appcheck.sh   # fails if the App Check debug token leaks into build/web
+```
+
+The key is the **public** site key; the reCAPTCHA secret key never belongs in the app. Without the
+define, App Check is skipped and the assistant stays hidden (a debug log says so).
+
+**Local debug on web only:** `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true` is set by
+`lib/core/app_check_web_debug_web.dart`, which is `kDebugMode`- and `localhost`-gated. It is
+deliberately *not* in `web/index.html`, because that file is copied verbatim into every release
+build. `tool/check_web_release_appcheck.sh` and
+`test/tooling/web_release_appcheck_guard_test.dart` both fail if the token appears in the release
+bundle (the only tolerated occurrence is `firebase_app_check_web`'s own `WebDebugProvider` branch,
+which never runs for the reCAPTCHA Enterprise provider this app activates).
+
+### Registering a debug token (never commit it)
+
+- **Web:** run `flutter run -d chrome`, open the browser console and copy
+  `AppCheck debug token: "..."`. Then **App Check → Apps → Web → ⋮ → Manage debug tokens → Add**.
+  The token lives in that browser profile only; use a per-machine token.
+- **Android:** run the debug build, and copy the `DebugAppCheckProvider: Enter this debug secret…`
+  token from `flutter logs`/logcat into **App Check → Apps → Android → Manage debug tokens**.
+- Never paste a token into `web/index.html`, a `--dart-define`, `lib/`, or any committed file, and
+  never distribute a debug-provider APK: it bypasses attestation by design.
+
+### Known limits
+
+- **Quota:** one request per question, 400 output tokens, low thinking level, no automatic retries,
+  and Demo Mode never calls the network. A `429`/quota error shows the room summary instead.
+- **Timeout:** 20 s per request; slower answers fall back to the summary. No streaming yet.
+- **Context:** only the last 4 messages are sent; nothing is persisted.
+- **Model retirement:** the fallback model is tried **once**, and only when the primary model is
+  reported as unavailable. Remote Config is the long-term fix and is out of scope.
+- **Logging:** questions and answers are never logged in any build; only the failure *category* is
+  logged in debug builds.
+- **Android release:** if App Check cannot activate (for example an unsigned or unrecognised build),
+  the assistant stays hidden. Nothing else in the app depends on App Check.
+
+---
+
 ## Data Contract Reference
 
 ### 1. `/system` (Live Telemetry, updated every 2 s by ESP32)

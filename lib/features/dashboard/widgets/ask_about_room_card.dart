@@ -1,24 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/strings.dart';
-import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/assistant/assistant_providers.dart';
 import 'package:aerosense_app/features/summary/widgets/summary_sheet.dart';
 
 /// Dashboard entry point for the deterministic summary and Ask AeroSense.
 ///
-/// The assistant action is only shown when [AppConfig.assistantEnabled] is true
-/// (slice 7b-3) or in Demo Mode, so the card never exposes a dead action. The
-/// fan button on the dashboard remains the single primary action.
+/// The assistant action is only shown when [assistantEnabledProvider] is true
+/// (App Check active and signed in, or Demo Mode), so the card never exposes a
+/// dead action. The fan button on the dashboard remains the single primary
+/// action.
 class AskAboutRoomCard extends ConsumerWidget {
   const AskAboutRoomCard({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final assistantAvailable =
-        AppConfig.assistantEnabled || ref.watch(demoModeProvider);
+    final assistantAvailable = ref.watch(assistantEnabledProvider);
 
     return Card(
       child: Padding(

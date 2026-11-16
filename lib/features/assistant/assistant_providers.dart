@@ -1,28 +1,47 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/core/app_check.dart';
+import 'package:aerosense_app/core/app_check_provider.dart';
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/assistant_message.dart';
 import 'package:aerosense_app/data/repositories/assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_assistant_repository.dart';
+import 'package:aerosense_app/data/repositories/firebase_ai_assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/assistant/assistant_failure.dart';
 import 'package:aerosense_app/features/assistant/assistant_models.dart';
 import 'package:aerosense_app/features/assistant/assistant_prompt.dart';
 import 'package:aerosense_app/features/assistant/rate_limiter.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/summary/summary_providers.dart';
 
+/// Whether the "Ask AeroSense" action and route are exposed.
+///
+/// True only in Demo Mode (scripted answers, no network) or when all three live
+/// conditions hold: App Check activated, a user signed in, and the repository
+/// therefore able to send a verified request. Anything else hides the action
+/// rather than offering a button that cannot work; "Summarize" is unaffected.
+final assistantEnabledProvider = Provider<bool>((ref) {
+  if (ref.watch(demoModeProvider)) return true;
+  if (ref.watch(appCheckStatusProvider) != AppCheckStatus.active) return false;
+  return ref.watch(currentUserUidProvider) != null;
+});
+
 /// Assistant repository.
 ///
 /// Demo Mode answers are scripted from the same summary the deterministic
-/// sheet shows, with no network. Everywhere else this stays null until slice
-/// 7b-3 adds the Firebase AI Logic implementation, so no dead live path exists
-/// yet and the screen shows an honest unavailable state.
+/// sheet shows, with no network. Outside Demo Mode the live Firebase AI Logic
+/// repository is only created once [assistantEnabledProvider] is true, so no
+/// unprotected path exists while App Check is inactive or the visitor is
+/// signed out.
 final assistantRepositoryProvider = Provider<AssistantRepository?>((ref) {
-  final isDemo = ref.watch(demoModeProvider);
-  if (!isDemo) return null;
-  return FakeAssistantRepository(
-    summaryInput: () => ref.read(summaryInputProvider),
-  );
+  if (ref.watch(demoModeProvider)) {
+    return FakeAssistantRepository(
+      summaryInput: () => ref.read(summaryInputProvider),
+    );
+  }
+  if (!ref.watch(assistantEnabledProvider)) return null;
+  return FirebaseAiAssistantRepository();
 });
 
 /// One limiter per app session so the per-uid window survives reopening the
@@ -122,14 +141,17 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
         messages: _keepNewest(messages),
         lastQuestion: trimmed,
       );
-    } catch (_) {
+    } catch (error) {
       if (!ref.mounted) return;
       // No automatic retry: the visible "Try again" action re-enters the
-      // limiter and is the only way to send another request.
+      // limiter and is the only way to send another request. Questions and
+      // answers are never logged, in any build.
       state = AssistantChatState(
         status: AssistantStatus.error,
         messages: history,
-        errorMessage: AppStrings.assistantErrorBody,
+        errorMessage: error is AssistantException
+            ? assistantFailureMessage(error.failure)
+            : AppStrings.assistantErrorBody,
         lastQuestion: trimmed,
       );
     }
