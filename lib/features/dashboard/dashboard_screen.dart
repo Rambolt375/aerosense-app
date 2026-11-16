@@ -7,11 +7,11 @@ import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
-import 'package:aerosense_app/features/dashboard/widgets/ask_about_room_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/fan_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
 import 'package:aerosense_app/shared/account_avatar_button.dart';
+import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 
 /// Live dashboard screen with metric tiles, tier banner, and fan control.
 ///
@@ -59,7 +59,12 @@ class _DashboardContent extends StatelessWidget {
     final isDeviceOffline = deviceStatus.isOffline;
 
     Widget content = ListView(
-      padding: EdgeInsets.all(padding),
+      padding: EdgeInsets.fromLTRB(
+        padding,
+        padding,
+        padding,
+        padding + assistantSpeedDialContentInset,
+      ),
       children: [
         Text('Telemetry Readout', style: theme.textTheme.titleLarge),
         const SizedBox(height: 2),
@@ -80,7 +85,13 @@ class _DashboardContent extends StatelessWidget {
           opacity: isDeviceOffline ? 0.45 : 1.0,
           child: Column(
             children: [
-              TierBanner(tier: state.tier, statusMessage: state.statusMessage),
+              TierBanner(
+                tier: state.tier,
+                statusMessage: state.statusMessage,
+                lastKnownAt: isDeviceOffline
+                    ? deviceStatus.formattedTime
+                    : null,
+              ),
               const SizedBox(height: 16),
               MetricGrid(
                 temperature: state.temperature,
@@ -96,8 +107,6 @@ class _DashboardContent extends StatelessWidget {
         const FanCard(),
         const SizedBox(height: 24),
 
-        // Deterministic summary entry (Phase 7b-1)
-        const AskAboutRoomCard(),
         if (kDebugMode) ...[
           const SizedBox(height: 24),
           Center(
@@ -246,7 +255,12 @@ class _DashboardSkeleton extends StatelessWidget {
     final padding = width < 600 ? 16.0 : 24.0;
 
     return ListView(
-      padding: EdgeInsets.all(padding),
+      padding: EdgeInsets.fromLTRB(
+        padding,
+        padding,
+        padding,
+        padding + assistantSpeedDialContentInset,
+      ),
       children: [
         // Tier banner skeleton
         Container(

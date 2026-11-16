@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 8a (profile page — implementation complete, awaiting review). Slice 8b (assistant speed dial) is planned in `docs/phase-8-plan.md` and NOT started.
+> **Current phase:** 8b (assistant speed dial — implementation complete, awaiting review). Do not begin a new slice until review is complete.
 
 ## Blockers / open questions (owner: human)
 
@@ -222,7 +222,13 @@
 - [x] Demo Mode: fake user, chip reads "Demo", editing works in memory and is labelled "Demo Mode: not saved".
 - [x] Tests: name validation and initial logic (12), fake repository profile stream/errors (5), profile screen states incl. photo fallback and Demo Mode (10), account avatar/menu/routes (9), plus Profile in the responsive audit at 360/768/1280 with 1.3x text. Existing auth mocks and the dashboard tests updated for the new interface member and the app-bar avatar.
 - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` 565 tests passing.
-- [ ] Not started: slice 8b (assistant speed dial, offline tier banner wording, README/DESIGN updates) — pending approval of 8a.
+- [x] Slice 8b: removed the dashboard `AskAboutRoomCard` while retaining `SummarySheet`; added one shell-owned Assistant speed dial (`endFloat`) with a zero-elevation, outlined secondary/tonal FAB. With one available action it opens Summary directly; otherwise it expands upward to Summarize and Ask AeroSense (scripted label in Demo Mode), respects reduced motion, and collapses before navigation, on outside tap, Escape, and Back.
+- [x] Slice 8b: speed dial is excluded from Login, Profile, and Assistant routes by shell ownership, hidden when the soft keyboard is open, and follows logical Tab focus order. Shell scroll views reserve 96 dp at their bottom for it.
+- [x] Slice 8b: changed an offline dashboard tier banner to neutral `Last known: Safe / Caution / Danger at HH:mm` wording; it suppresses live-status copy and Danger pulse while stale.
+- [x] Slice 8b: Demo Mode disclosure added below the Ask screen title. Updated README and DESIGN.md for Profile, account-menu positioning, and speed-dial behavior.
+- [x] Slice 8b tests: speed-dial action states, Demo label, navigation, keyboard hiding on every tab, 360 dp account-menu coexistence, Escape close, and floating SnackBar on-screen/non-overlap checks; offline tier and Demo disclosure tests added.
+- [x] Slice 8b fix: the 360 dp per-tab keyboard test exposed a pre-existing live-mode overflow in the read-only Safety Threshold rows (spaceBetween with no flex; hidden because the card is below the fold and the old audit only ran in Demo Mode). Rows now use a flexible label plus a right-aligned value, and a scrolling live-mode regression test covers 360/768/1280 at 1.3x.
+- [x] Slice 8b verification: `dart format .` clean, `flutter analyze` 0 issues, `flutter test` 575 passing, `tool/check_no_secrets.sh` clean. Hot restart of the running web app reported no runtime errors. No build, deployment, or RTDB write.
 
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).

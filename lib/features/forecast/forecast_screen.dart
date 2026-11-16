@@ -7,6 +7,7 @@ import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
 import 'package:aerosense_app/features/forecast/widgets/preventive_card.dart';
 import 'package:aerosense_app/shared/account_avatar_button.dart';
+import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 
 /// Diurnal forecasting screen (PRD §FR-6).
 ///
@@ -52,9 +53,11 @@ class ForecastScreen extends ConsumerWidget {
                 maxWidth: isWide ? 1200 : double.infinity,
               ),
               child: ListView(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
+                padding: const EdgeInsets.fromLTRB(
+                  16,
+                  16,
+                  16,
+                  assistantSpeedDialContentInset,
                 ),
                 children: [
                   // 1. Forecast Status Card

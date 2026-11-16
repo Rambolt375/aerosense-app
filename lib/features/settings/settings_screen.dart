@@ -7,6 +7,7 @@ import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/shared/account_avatar_button.dart';
+import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 
 /// Settings screen providing read-only hardware thresholds, forecast parameters,
 /// theme selection, and Demo Mode controls.
@@ -36,7 +37,12 @@ class SettingsScreen extends ConsumerWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              16,
+              16,
+              assistantSpeedDialContentInset,
+            ),
             children: [
               // ---------------------------------------------------------------
               // Appearance (Theme Mode)
@@ -620,24 +626,32 @@ class SettingsScreen extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 2.0),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: row.color,
-                        shape: BoxShape.circle,
+                Expanded(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: row.color,
+                          shape: BoxShape.circle,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(row.label, style: theme.textTheme.bodyMedium),
-                  ],
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          row.label,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+                const SizedBox(width: 8),
                 Text(
                   row.value,
+                  textAlign: TextAlign.end,
                   style: theme.textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w600,
                   ),

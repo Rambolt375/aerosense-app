@@ -90,6 +90,8 @@ Sentence case everywhere. No ALL CAPS except the "DEMO MODE" ribbon.
 - **Forecast status card:** pill showing *Learning / Active / Locked out*, one line of explanation. Locked out uses the Medium container color and the text "Predictive layer locked out. Deterministic safety logic in control."
 - **Chips:** connection (`wifi` / `wifi_off`), last update time. Height 28, `surfaceAlt`, `label` text.
 - **Buttons:** filled (primary), outlined (outline border, textPrimary), text. Height 44, min touch target 48.
+- **Assistant speed dial:** one secondary-container FAB at the shell's bottom end. It has a 1 px outline and no elevation. If both actions are available, it expands upward in 250 ms to `Summarize` then `Ask AeroSense`; with only summary available, it opens the summary directly. It is hidden while the keyboard is open and on full-screen Login, Profile, and Ask routes. Shell scroll views reserve bottom space for it, and floating SnackBars use the standard scaffold placement above it.
+- **Account menu:** opens below the app-bar avatar so the avatar remains visible. It contains only Profile and Sign out.
 - **Demo ribbon:** 24 dp strip at the top, `#0F1B2A` background, white "DEMO MODE", always visible.
 - **Empty / loading:** skeleton blocks in `surfaceAlt`, no spinners over content. Empty states: one icon, one sentence.
 

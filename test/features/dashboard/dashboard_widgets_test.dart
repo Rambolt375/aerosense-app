@@ -285,6 +285,30 @@ void main() {
       expect(finder, findsOneWidget);
     });
 
+    testWidgets('offline tier is neutral last-known information', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: TierBanner(
+              tier: Tier.medium,
+              statusMessage: 'CAUTION',
+              lastKnownAt: '18:31',
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Last known: Caution at 18:31'), findsOneWidget);
+      expect(
+        find.text(
+          'The room is getting stuffy. Manual ventilation is available.',
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('statusMessage displayed verbatim when descriptive', (
       tester,
     ) async {

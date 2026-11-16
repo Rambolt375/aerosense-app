@@ -193,6 +193,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Last data at 19:10'), findsOneWidget);
+      expect(find.text('Last known: Safe at 19:10'), findsOneWidget);
       expect(find.text('Offline'), findsOneWidget);
 
       // The separate offline card and the old stream row are gone.

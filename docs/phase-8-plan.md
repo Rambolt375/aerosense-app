@@ -1,7 +1,7 @@
 # Phase 8 plan: profile page + assistant speed dial
 
-Status: 8a in progress (2026-11-16). Two independent slices. **Do not start 8b
-until the human approves 8a.**
+Status: 8b in progress (2026-11-16). Slice 8a was approved; stop for human
+review after slice 8b.
 
 Sources of truth: `PRD_AEROSENSE_APP.md`, `DESIGN.md`, `AGENTS.md`, `TODO.md`,
 `docs/phase-7b-plan.md`.
@@ -127,9 +127,7 @@ sign-out test moves to the profile/avatar tests.
 | `test/features/profile/account_avatar_button_test.dart` | semantics label "Account menu"; tooltip is the display name; exactly two menu items; Profile opens `/profile`; Sign out confirms before calling the repository; avatar hidden on `/login`, `/profile`, `/assistant`; visible on all four tabs at 360 and 1280 px; avatar updates after a rename. |
 | `test/features/responsive_overflow_test.dart` | Profile at 360x640, 768x1024, 1280x800 with 1.3x text. |
 
-## Slice 8b: assistant speed dial (not started)
-
-Recorded here for sequencing only; implementation waits for 8a approval.
+## Slice 8b: assistant speed dial
 
 1. Remove `AskAboutRoomCard` from the dashboard (keep `SummarySheet`).
 2. One expandable FAB in the shell, `FloatingActionButtonLocation.endFloat`,

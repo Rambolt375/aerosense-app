@@ -39,6 +39,11 @@ class AppStrings {
   static const tierSafeTitle = 'Room is safe';
   static const tierMediumTitle = 'Room is getting stuffy';
   static const tierDangerTitle = 'Hazardous air detected';
+  static const tierSafeShort = 'Safe';
+  static const tierCautionShort = 'Caution';
+  static const tierDangerShort = 'Danger';
+  static String lastKnownTier(String tier, String time) =>
+      'Last known: $tier at $time';
 
   // Fan Control & Status Headers (DESIGN.md §8)
   static const fanOn = 'Fan on';
@@ -106,7 +111,9 @@ class AppStrings {
   static const askAboutRoomBody =
       'Get a plain-language description of what the device reports right now.';
   static const summarize = 'Summarize';
+  static const assistantMenu = 'Assistant';
   static const askAeroSense = 'Ask AeroSense';
+  static const askAeroSenseScripted = 'Ask AeroSense (scripted)';
   static const summaryTitle = 'Summary';
   static const languageEnglish = 'English';
   static const languageIndonesia = 'Indonesia';

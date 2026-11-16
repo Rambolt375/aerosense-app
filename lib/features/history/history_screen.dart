@@ -10,6 +10,7 @@ import 'package:aerosense_app/features/history/widgets/history_error_card.dart';
 import 'package:aerosense_app/features/history/widgets/metric_chart_card.dart';
 import 'package:aerosense_app/features/history/widgets/range_selector.dart';
 import 'package:aerosense_app/shared/account_avatar_button.dart';
+import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 import 'package:aerosense_app/shared/empty_state.dart';
 
 /// Historical telemetry charts screen (PRD §FR-5).
@@ -59,7 +60,12 @@ class HistoryScreen extends ConsumerWidget {
 
   Widget _buildLoadingState(HistoryRange selectedRange) {
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        assistantSpeedDialContentInset,
+      ),
       children: [
         Center(
           child: RangeSelector(selected: selectedRange, onSelected: (_) {}),
@@ -82,7 +88,12 @@ class HistoryScreen extends ConsumerWidget {
     // 1. If repository has 0 records total
     if (!data.hasAnyHistory) {
       return ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 32),
+        padding: const EdgeInsets.fromLTRB(
+          16,
+          32,
+          16,
+          assistantSpeedDialContentInset,
+        ),
         children: const [
           EmptyState(
             icon: Icons.history_toggle_off_outlined,
@@ -97,7 +108,12 @@ class HistoryScreen extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        assistantSpeedDialContentInset,
+      ),
       children: [
         // Range selector
         Center(

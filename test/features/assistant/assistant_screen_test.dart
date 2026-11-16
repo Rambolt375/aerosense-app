@@ -60,6 +60,11 @@ class _PendingRepository implements AssistantRepository {
   }
 }
 
+class _DemoModeNotifier extends DemoModeNotifier {
+  @override
+  bool build() => true;
+}
+
 SummaryInput buildSummary() {
   return SummaryInput(
     state: const SystemState(
@@ -84,6 +89,7 @@ Widget _harness({
   SlidingWindowRateLimiter? limiter,
   _TestClock? clock,
   double textScale = 1.0,
+  bool demo = false,
 }) {
   final testClock = clock ?? _TestClock(DateTime(2026, 11, 15, 14, 10));
   return ProviderScope(
@@ -98,6 +104,7 @@ Widget _harness({
       currentUserUidProvider.overrideWithValue('uid-1'),
       deviceLocaleProvider.overrideWithValue(const Locale('en')),
       clockProvider.overrideWithValue(testClock.call),
+      if (demo) demoModeProvider.overrideWith(_DemoModeNotifier.new),
     ],
     child: MaterialApp(
       theme: AeroSenseTheme.light,
@@ -132,6 +139,12 @@ void main() {
       expect(send.onPressed, isNull);
     },
   );
+
+  testWidgets('shows the scripted disclosure in Demo Mode', (tester) async {
+    await tester.pumpWidget(_harness(demo: true));
+
+    expect(find.text(AppStrings.assistantDemoScripted), findsOneWidget);
+  });
 
   testWidgets('a suggested chip asks a question and shows the answer', (
     tester,

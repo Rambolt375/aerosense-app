@@ -28,10 +28,10 @@ void main() {
     Size(1280, 800), // Desktop / Web
   ];
 
-  Widget buildApp(Widget screen, {double textScale = 1.0}) {
+  Widget buildApp(Widget screen, {double textScale = 1.0, bool demo = true}) {
     return ProviderScope(
       overrides: [
-        demoModeProvider.overrideWith(() => _AlwaysDemoNotifier()),
+        if (demo) demoModeProvider.overrideWith(() => _AlwaysDemoNotifier()),
         authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         systemRepositoryProvider.overrideWithValue(
           FakeSystemRepository(clock: () => DateTime(2026, 11, 10, 8, 30)),
@@ -135,6 +135,33 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byType(SettingsScreen), findsOneWidget);
       });
+
+      // Regression: the read-only threshold rows used to overflow on a narrow
+      // screen because they were laid out with spaceBetween and no flex. The
+      // card sits below the fold, so it is only built after scrolling.
+      testWidgets(
+        'Settings threshold rows fit at $label (live mode, textScale 1.3)',
+        (tester) async {
+          tester.view.physicalSize = size;
+          tester.view.devicePixelRatio = 1.0;
+          addTearDown(tester.view.reset);
+
+          await tester.pumpWidget(
+            buildApp(const SettingsScreen(), textScale: 1.3, demo: false),
+          );
+          await tester.pumpAndSettle();
+
+          await tester.dragUntilVisible(
+            find.text('Recovery level'),
+            find.byType(ListView),
+            const Offset(0, -300),
+          );
+          await tester.pumpAndSettle();
+
+          expect(tester.takeException(), isNull);
+          expect(find.text('Recovery level'), findsOneWidget);
+        },
+      );
 
       testWidgets('Profile renders cleanly at $label (textScale 1.3)', (
         tester,

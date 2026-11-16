@@ -13,10 +13,14 @@ class TierBanner extends StatefulWidget {
     super.key,
     required this.tier,
     required this.statusMessage,
+    this.lastKnownAt,
   });
 
   final Tier tier;
   final String statusMessage;
+
+  /// When supplied, the device is offline and this is its last known tier.
+  final String? lastKnownAt;
 
   @override
   State<TierBanner> createState() => _TierBannerState();
@@ -106,9 +110,14 @@ class _TierBannerState extends State<TierBanner>
     final tierColors = context.tierColors;
 
     final (icon, title) = _tierContent(widget.tier);
-    final solidColor = tierColors.forTier(widget.tier).solid;
-    final containerColor = tierColors.forTier(widget.tier).container;
-    final message = _displayMessage();
+    final isLastKnown = widget.lastKnownAt != null;
+    final solidColor = isLastKnown
+        ? theme.colorScheme.onSurfaceVariant
+        : tierColors.forTier(widget.tier).solid;
+    final containerColor = isLastKnown
+        ? theme.colorScheme.surfaceContainerHighest
+        : tierColors.forTier(widget.tier).container;
+    final message = isLastKnown ? '' : _displayMessage();
 
     return Container(
       width: double.infinity,
@@ -127,7 +136,7 @@ class _TierBannerState extends State<TierBanner>
                 animation: _opacityAnimation,
                 builder: (context, child) {
                   return Opacity(
-                    opacity: widget.tier == Tier.danger
+                    opacity: widget.tier == Tier.danger && !isLastKnown
                         ? _opacityAnimation.value
                         : 1.0,
                     child: child,
@@ -138,7 +147,12 @@ class _TierBannerState extends State<TierBanner>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  title,
+                  widget.lastKnownAt == null
+                      ? title
+                      : AppStrings.lastKnownTier(
+                          _tierLabel(widget.tier),
+                          widget.lastKnownAt!,
+                        ),
                   style: theme.textTheme.titleMedium?.copyWith(
                     color: solidColor,
                     fontVariations: [const FontVariation('wght', 600)],
@@ -169,6 +183,17 @@ class _TierBannerState extends State<TierBanner>
         return (Icons.warning_amber_outlined, AppStrings.tierMediumTitle);
       case Tier.danger:
         return (Icons.error_outline, AppStrings.tierDangerTitle);
+    }
+  }
+
+  String _tierLabel(Tier tier) {
+    switch (tier) {
+      case Tier.safe:
+        return AppStrings.tierSafeShort;
+      case Tier.medium:
+        return AppStrings.tierCautionShort;
+      case Tier.danger:
+        return AppStrings.tierDangerShort;
     }
   }
 }

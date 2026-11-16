@@ -102,8 +102,8 @@ flutter run --dart-define=DEMO=true
 ```
 
 Demo Mode can also be toggled at runtime from the **Login** screen ("Try Demo Mode") or the
-**Settings** screen. The persistent **DEMO MODE** ribbon and the dashboard card label the
-scripted answers as scripted.
+**Settings** screen. The persistent **DEMO MODE** ribbon, the speed-dial action label, and the
+Ask AeroSense screen all label scripted answers as scripted.
 
 ---
 
@@ -179,10 +179,15 @@ request body or a log. The request carries the approved rules plus the determini
 
 ### Gating
 
-The **Ask AeroSense** action is shown when `GEMINI_API_KEY` is non-empty **and** a user is signed
-in. The rule is identical on web and Android. In Demo Mode it is forced on and uses the scripted
-fake; the dashboard card labels those answers as scripted. With no key the action is hidden and
-**Summarize** keeps working.
+The shell's bottom-end **Assistant** speed dial is the entry point for room explanations. With no
+assistant key it opens the deterministic **Summarize** sheet directly. When `GEMINI_API_KEY` is
+non-empty **and** a user is signed in, it expands to **Summarize** and **Ask AeroSense**. The rule
+is identical on web and Android. In Demo Mode Ask is forced on, uses the scripted fake, and is
+explicitly labelled as scripted. The dial hides while the soft keyboard is open and does not
+appear on Login, Profile, or Ask AeroSense routes.
+
+The app-bar account avatar opens a menu below the photo with **Profile** and **Sign out**. Profile
+edits affect the AeroSense display name only; they do not change the Google or team-account name.
 
 ### Key setup (competition-only exception)
 

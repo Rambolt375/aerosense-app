@@ -18,6 +18,7 @@ import 'package:aerosense_app/features/history/history_screen.dart';
 import 'package:aerosense_app/features/profile/profile_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 import 'package:aerosense_app/shared/demo_ribbon.dart';
+import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 
 // ---------------------------------------------------------------------------
 // Router provider — created once, never rebuilt inside build()
@@ -205,6 +206,7 @@ class AppShellScaffold extends ConsumerWidget {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = width >= 900;
     final showNoticeBanner = navigationShell.currentIndex != 0;
+    final keyboardIsOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
 
     // Active pre-ventilation publisher watcher (if designated as publishing device)
     ref.watch(preventivePublisherProvider);
@@ -269,11 +271,17 @@ class AppShellScaffold extends ConsumerWidget {
             Expanded(child: content),
           ],
         ),
+        floatingActionButton: keyboardIsOpen
+            ? null
+            : const AssistantSpeedDial(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       );
     }
 
     return Scaffold(
       body: content,
+      floatingActionButton: keyboardIsOpen ? null : const AssistantSpeedDial(),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: NavigationBar(
         height: 68,
         backgroundColor: Theme.of(context).colorScheme.surface,

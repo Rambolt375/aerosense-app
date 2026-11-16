@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/assistant_message.dart';
+import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/assistant/assistant_models.dart';
 import 'package:aerosense_app/features/assistant/assistant_providers.dart';
 import 'package:aerosense_app/features/summary/summary_models.dart';
@@ -20,6 +21,7 @@ class AssistantScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final state = ref.watch(assistantChatProvider);
     final language = ref.watch(summaryLanguageProvider);
+    final isDemo = ref.watch(demoModeProvider);
     final summary = ref.watch(summaryResultProvider);
     final width = MediaQuery.sizeOf(context).width;
     final padding = width < 600 ? 16.0 : 24.0;
@@ -38,6 +40,15 @@ class AssistantScreen extends ConsumerWidget {
                   child: ListView(
                     padding: EdgeInsets.fromLTRB(padding, 8, padding, 16),
                     children: [
+                      if (isDemo) ...[
+                        Text(
+                          AppStrings.assistantDemoScripted,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
                       Align(
                         alignment: Alignment.centerLeft,
                         child: SegmentedButton<SummaryLanguage>(
