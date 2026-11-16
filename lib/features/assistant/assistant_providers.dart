@@ -1,12 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:aerosense_app/core/app_check.dart';
-import 'package:aerosense_app/core/app_check_provider.dart';
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/models/assistant_message.dart';
 import 'package:aerosense_app/data/repositories/assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_assistant_repository.dart';
-import 'package:aerosense_app/data/repositories/firebase_ai_assistant_repository.dart';
+import 'package:aerosense_app/data/repositories/gemini_rest_assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/assistant/assistant_failure.dart';
 import 'package:aerosense_app/features/assistant/assistant_models.dart';
@@ -15,25 +13,30 @@ import 'package:aerosense_app/features/assistant/rate_limiter.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/summary/summary_providers.dart';
 
+/// Gemini API key supplied at build time.
+///
+/// Overridable in tests; production reads the compile-time define from
+/// `env.json` (web) or `env.android.json` (Android). It is never read from a
+/// committed file at runtime.
+final geminiApiKeyProvider = Provider<String>((ref) => AppConfig.geminiApiKey);
+
 /// Whether the "Ask AeroSense" action and route are exposed.
 ///
-/// True only in Demo Mode (scripted answers, no network) or when all three live
-/// conditions hold: App Check activated, a user signed in, and the repository
-/// therefore able to send a verified request. Anything else hides the action
-/// rather than offering a button that cannot work; "Summarize" is unaffected.
+/// True only in Demo Mode (scripted answers, no network) or when a build-time
+/// key is present **and** a user is signed in. Web and Android use the same
+/// rule. Without a key the action stays hidden; "Summarize" is unaffected.
 final assistantEnabledProvider = Provider<bool>((ref) {
   if (ref.watch(demoModeProvider)) return true;
-  if (ref.watch(appCheckStatusProvider) != AppCheckStatus.active) return false;
+  if (ref.watch(geminiApiKeyProvider).isEmpty) return false;
   return ref.watch(currentUserUidProvider) != null;
 });
 
 /// Assistant repository.
 ///
 /// Demo Mode answers are scripted from the same summary the deterministic
-/// sheet shows, with no network. Outside Demo Mode the live Firebase AI Logic
+/// sheet shows, with no network. Outside Demo Mode the direct Gemini REST
 /// repository is only created once [assistantEnabledProvider] is true, so no
-/// unprotected path exists while App Check is inactive or the visitor is
-/// signed out.
+/// request can be sent without a key or without a signed-in user.
 final assistantRepositoryProvider = Provider<AssistantRepository?>((ref) {
   if (ref.watch(demoModeProvider)) {
     return FakeAssistantRepository(
@@ -41,7 +44,7 @@ final assistantRepositoryProvider = Provider<AssistantRepository?>((ref) {
     );
   }
   if (!ref.watch(assistantEnabledProvider)) return null;
-  return FirebaseAiAssistantRepository();
+  return GeminiRestAssistantRepository(apiKey: ref.watch(geminiApiKeyProvider));
 });
 
 /// One limiter per app session so the per-uid window survives reopening the

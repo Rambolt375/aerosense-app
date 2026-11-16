@@ -115,24 +115,14 @@ class AppStrings {
   static const assistantUnavailableBody =
       "The assistant isn't available in this build. "
       'Here is the room summary instead.';
-  static const assistantFailureQuota =
-      'The assistant has reached its usage limit for now. '
-      'Here is the room summary instead.';
-  static const assistantFailureService =
-      "The assistant service isn't available right now. "
-      'Here is the room summary instead.';
-  static const assistantFailureNetwork =
-      "Couldn't reach the assistant. Check the connection and try again. "
-      'Here is the room summary instead.';
-  static const assistantFailureBlocked =
-      "The assistant couldn't answer that question. "
-      'Try asking about the readings instead. Here is the room summary.';
-  static const assistantFailureEmpty =
-      'The assistant returned no answer. '
-      'Here is the room summary instead.';
-  static const assistantFailureUnknown =
-      "The assistant couldn't answer just now. "
-      'Here is the room summary instead.';
+  static const assistantFailureSetup = "The assistant isn't set up right now.";
+  static const assistantFailureBusy = 'The assistant is busy right now.';
+  static const assistantFailureBusyAfterRetry =
+      'The assistant is busy right now. Try again in a minute.';
+  static const assistantFailureNoConnection = 'No connection.';
+  static const assistantFailureNoAnswer = "I couldn't answer that.";
+  static const assistantDemoScripted =
+      'Demo Mode: answers are scripted, not from Gemini.';
   static const assistantRateLimitedTitle = 'Question limit reached';
   static String assistantRateLimitedBody(String wait) =>
       'You can ask again in $wait. Here is the room summary.';

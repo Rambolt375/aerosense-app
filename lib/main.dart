@@ -1,12 +1,9 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:aerosense_app/firebase_options.dart';
 import 'package:aerosense_app/app.dart';
-import 'package:aerosense_app/core/app_check_provider.dart';
 import 'package:aerosense_app/core/theme_mode_provider.dart';
 
 Future<void> main() async {
@@ -33,11 +30,6 @@ Future<void> main() async {
       initialThemeModeProvider.overrideWithValue(initialMode),
     ],
   );
-
-  // App Check runs after Firebase.initializeApp but is deliberately not
-  // awaited: a slow or failing attestation must never delay app start. The
-  // live assistant stays hidden until the provider reports `active`.
-  unawaited(container.read(appCheckStatusProvider.notifier).activate());
 
   runApp(
     UncontrolledProviderScope(

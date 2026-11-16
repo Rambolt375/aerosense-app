@@ -67,22 +67,43 @@ firebase deploy --only database
 
 ## Running the App
 
-### Live Mode (Connected to Physical Hardware / Firebase)
-```bash
-# Web
-flutter run -d chrome
+### Build commands
 
-# Android
-flutter run
+The live assistant reads `GEMINI_API_KEY` at build time from a JSON file passed with
+`--dart-define-from-file`. Use **two different restricted keys**: `env.json` for web and
+`env.android.json` for Android.
+
+| Target | Command |
+|---|---|
+| Web release | `flutter build web --release --dart-define-from-file=env.json` |
+| Android release APK | `flutter build apk --release --dart-define-from-file=env.android.json` |
+| Demo web | `flutter build web --release --dart-define-from-file=env.json --dart-define=DEMO=true` |
+| Demo APK | `flutter build apk --release --dart-define-from-file=env.android.json --dart-define=DEMO=true` |
+| Run locally (web) | `flutter run -d chrome --dart-define-from-file=env.json` |
+| Run locally (Android) | `flutter run --dart-define-from-file=env.android.json` |
+
+Create the two local files from the committed templates and fill in the keys:
+
+```bash
+cp env.example.json env.json
+cp env.android.example.json env.android.json
 ```
 
+Both real files are gitignored and must never be committed. Without a key, the app still
+builds and runs; only the **Ask AeroSense** action is hidden.
+
 ### Demo Mode (Fully Simulated Telemetry)
-You can launch directly in Demo Mode without requiring a Firebase connection or hardware:
+
+Demo Mode runs without a Firebase connection or hardware and uses the scripted assistant:
+
 ```bash
 flutter run -d chrome --dart-define=DEMO=true
 flutter run --dart-define=DEMO=true
 ```
-Demo Mode can also be toggled dynamically at runtime from the **Login** screen ("Try Demo Mode") or the **Settings** screen.
+
+Demo Mode can also be toggled at runtime from the **Login** screen ("Try Demo Mode") or the
+**Settings** screen. The persistent **DEMO MODE** ribbon and the dashboard card label the
+scripted answers as scripted.
 
 ---
 
@@ -97,37 +118,29 @@ flutter analyze
 
 # Run complete test suite (unit, pipeline, widget, and responsive tests)
 flutter test
+
+# Fail if a tracked file contains a Google API key prefix
+tool/check_no_secrets.sh
 ```
 
 ---
 
 ## Release Builds
 
-### 1. Android Release APK
-The Android manifest (`android/app/src/main/AndroidManifest.xml`) includes `android.permission.INTERNET` and application label `AeroSense`.
+The commands are in the table above. Outputs:
 
-```bash
-# Standard Production APK (Connected to Firebase)
-flutter build apk --release
-# Output: build/app/outputs/flutter-apk/app-release.apk
+- Android APK: `build/app/outputs/flutter-apk/app-release.apk`
+- Web: `build/web`
 
-# Competition Demo APK (Starts with Demo Mode enabled)
-flutter build apk --release --dart-define=DEMO=true
-# Copy/rename output:
-cp build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/aerosense-demo-release.apk
-```
+Notes:
 
-### 2. Web Release
-```bash
-# Standard Production Web
-flutter build web --release
-# Output: build/web
-
-# Competition Demo Web (Bundles static renderer assets locally without CDN reliance)
-flutter build web --release --dart-define=DEMO=true --no-web-resources-cdn
-# Output: build/web
-```
-*Note: Passing `--no-web-resources-cdn` downloads and bundles CanvasKit and static web resources locally, ensuring the demo web app works reliably even if venue Wi-Fi is unstable or offline.*
+- The Android manifest (`android/app/src/main/AndroidManifest.xml`) includes
+  `android.permission.INTERNET` and application label `AeroSense`.
+- Passing `--no-web-resources-cdn` to a web build downloads and bundles CanvasKit and static
+  web resources locally, so the demo works even on unstable venue Wi-Fi.
+- Demo builds keep the `DEMO MODE` ribbon; they never call the live assistant.
+- The Android release APK carries a key. Keep it to team and booth devices only; do not publish
+  it. See **Assistant and keys** below.
 
 ---
 
@@ -148,76 +161,75 @@ firebase deploy --only hosting
 
 ---
 
-## Ask AeroSense (Firebase AI Logic + App Check)
+## Assistant and keys
 
-The live assistant is the only networked AI feature. It sends **one question** at a time to
-`gemini-3.8-flash` (fallback constant `gemini-3.5-flash-lite`) through Firebase AI Logic, with the
-deterministic summary as the system instruction and no tools. It is hidden unless **all** of these
-hold: App Check activated, a user signed in, and Demo Mode off. "Summarize" always works offline.
+Ask AeroSense is the only networked AI feature. It calls the Gemini REST API directly over HTTPS
+(no Firebase AI Logic, no App Check) so the same implementation runs on web and Android:
 
-### Console setup (one-time, human)
-
-1. **AI Services → AI Logic → Get started → Gemini Developer API.** The app calls
-   `FirebaseAI.googleAI()`; the Agent Platform (Vertex) backend needs other project setup.
-2. **Security → App Check → APIs → Firebase AI Logic:** baseline protection **Enforced**.
-   Enforcement is mandatory for AI Logic since 2 November 2026; unenforced requests get
-   `403 PERMISSION_DENIED`. Keep replay protection **disabled** for now (it would demand
-   limited-use tokens, which this build does not request).
-3. **App Check → Apps → Web:** register the web app with **reCAPTCHA Enterprise**, add the hosting
-   domains *and* `localhost`, and copy the public **site key**.
-4. **App Check → Apps → Android:** register **Play Integrity** for release APKs. Team-only debug
-   builds use the debug provider instead.
-5. **AI Logic → Settings → authenticated-users mode:** turn it on. Every visitor signs in, so
-   anonymous requests should fail with `401` instead of spending project quota. The assistant's
-   client limiter is advisory; this plus the per-user rate limit (AI Logic → Settings → rate limits,
-   currently 100 requests/min per user by default) is the real ceiling.
-6. **AI Logic → Settings → AI monitoring:** enabling it is what gives request counts, latency and
-   error dashboards. Sampling rate (**1–100 %**, default 100 %) controls how many traces are stored,
-   and sampled prompts/responses are written to Cloud Logging. For a public booth, lower the sampling
-   rate and/or add the documented exclusion filter
-   (`resource.type="firebasevertexai.googleapis.com/Model"`) so visitor questions are not retained.
-
-### Web build (site key from a define, never hard-coded)
-
-```bash
-flutter build web --release \
-  --dart-define=APPCHECK_RECAPTCHA_SITE_KEY=6LfVFSEuAAAAAFBCJCbrInR__4yjifOBCxS7JGtA
-tool/check_web_release_appcheck.sh   # fails if the App Check debug token leaks into build/web
+```text
+POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent
+x-goog-api-key: <build-time key>
 ```
 
-The key is the **public** site key; the reCAPTCHA secret key never belongs in the app. Without the
-define, App Check is skipped and the assistant stays hidden (a debug log says so).
+The key is sent **only** in the `x-goog-api-key` header. It is never placed in the URL, the
+request body or a log. The request carries the approved rules plus the deterministic summary in
+`systemInstruction`, the last four messages plus the new question in `contents`, and
+`generationConfig` with `maxOutputTokens: 600`, `temperature: 0.3`. No tools, no writes.
+`gemini-3.5-flash-lite` is the only model; there is no fallback model.
 
-**Local debug on web only:** `self.FIREBASE_APPCHECK_DEBUG_TOKEN = true` is set by
-`lib/core/app_check_web_debug_web.dart`, which is `kDebugMode`- and `localhost`-gated. It is
-deliberately *not* in `web/index.html`, because that file is copied verbatim into every release
-build. `tool/check_web_release_appcheck.sh` and
-`test/tooling/web_release_appcheck_guard_test.dart` both fail if the token appears in the release
-bundle (the only tolerated occurrence is `firebase_app_check_web`'s own `WebDebugProvider` branch,
-which never runs for the reCAPTCHA Enterprise provider this app activates).
+### Gating
 
-### Registering a debug token (never commit it)
+The **Ask AeroSense** action is shown when `GEMINI_API_KEY` is non-empty **and** a user is signed
+in. The rule is identical on web and Android. In Demo Mode it is forced on and uses the scripted
+fake; the dashboard card labels those answers as scripted. With no key the action is hidden and
+**Summarize** keeps working.
 
-- **Web:** run `flutter run -d chrome`, open the browser console and copy
-  `AppCheck debug token: "..."`. Then **App Check → Apps → Web → ⋮ → Manage debug tokens → Add**.
-  The token lives in that browser profile only; use a per-machine token.
-- **Android:** run the debug build, and copy the `DebugAppCheckProvider: Enter this debug secret…`
-  token from `flutter logs`/logcat into **App Check → Apps → Android → Manage debug tokens**.
-- Never paste a token into `web/index.html`, a `--dart-define`, `lib/`, or any committed file, and
-  never distribute a debug-provider APK: it bypasses attestation by design.
+### Key setup (competition-only exception)
 
-### Known limits
+The normal rule is "no API key in the app". This competition build is a documented exception:
 
-- **Quota:** one request per question, 400 output tokens, low thinking level, no automatic retries,
-  and Demo Mode never calls the network. A `429`/quota error shows the room summary instead.
-- **Timeout:** 20 s per request; slower answers fall back to the summary. No streaming yet.
-- **Context:** only the last 4 messages are sent; nothing is persisted.
-- **Model retirement:** the fallback model is tried **once**, and only when the primary model is
-  reported as unavailable. Remote Config is the long-term fix and is out of scope.
-- **Logging:** questions and answers are never logged in any build; only the failure *category* is
-  logged in debug builds.
-- **Android release:** if App Check cannot activate (for example an unsigned or unrecognised build),
-  the assistant stays hidden. Nothing else in the app depends on App Check.
+1. Use a **separate, no-billing Google AI Studio project** and two **restricted free-tier keys**:
+   - **Web key** (`env.json`): HTTP-referrer restricted to the hosted and localhost origins.
+   - **Android key** (`env.android.json`): API-restricted only (Android apps cannot hide a key).
+2. Supply each key at build time with `--dart-define-from-file`; never commit it. Create the real
+   files from `env.example.json` and `env.android.example.json`.
+3. Keep the release APK to team and booth devices only. Do not publish or share it.
+4. **After the competition, delete both keys** in the Google AI Studio project. The app keeps
+   building without them; only the assistant is hidden.
+
+`tool/check_no_secrets.sh` fails if a tracked file contains a Google API key prefix. It allowlists
+only the three generated, public Firebase client-config files (`lib/firebase_options.dart`,
+`android/app/google-services.json`, `firebaseEndpointReference.js`), whose keys identify the
+Firebase project by design. Run it before every commit and before builds.
+
+The production design is a **backend proxy** (Firebase AI Logic with App Check), so no key ever
+ships to a client. The direct-client route is a competition-only exception, not the long-term
+architecture.
+
+### Request behaviour and friendly errors
+
+- **20 s timeout** per request. One automatic retry only for `503` / overloaded responses, about
+  1.5 s later on the same model.
+- **400 / 403:** "The assistant isn't set up right now."
+- **429:** "The assistant is busy right now." (no retry)
+- **503 / overloaded after the retry:** "The assistant is busy right now. Try again in a minute."
+- **Timeout or no network:** "No connection."
+- **Blocked or empty answer:** "I couldn't answer that."
+- Every failure keeps the deterministic **Room summary** on screen. Questions and answers are
+  never logged, and neither is the key or the request URL.
+- Response parsing tolerates future fields (`thoughtSignature`, non-text parts, thought parts) and
+  returns partial text when `finishReason` is `MAX_TOKENS`.
+
+### Risks
+
+| Risk | Handling |
+|---|---|
+| Key extraction from a client build | Two restricted free-tier keys in a no-billing project, no billing enabled, per-platform restrictions, build-time supply, no commits, APK limited to team/booth devices, keys deleted after the competition. The production design is a backend proxy. |
+| Quota abuse | Client limiter (6 questions / 10 min, 1.5 s spacing), one request per question, 600 output tokens, no retries except one `503` retry, Demo Mode offline, free-tier quota monitoring. |
+| Wrong answers | Grounded-only instruction, verbatim firmware tier, fixed disclaimer, summary one tap away, no tools, no write path. |
+| Prompt injection | Visitor text only in the user turn, facts only in the system instruction, explicit ignore rule-changing requests, plain-text output, length cap. |
+| Privacy | No chat storage, no personal data in the payload, no telemetry, no release logging. |
+| Key leak in git | `env.json` and `env.android.json` are gitignored; `tool/check_no_secrets.sh` guards tracked files. |
 
 ---
 

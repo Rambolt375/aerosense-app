@@ -12,10 +12,11 @@ Flutter app (Android + Web) for the AeroSense IoT ventilation system. Reads live
 4. **Don't guess the data contract.** Field types and the `/history` timestamp format are marked CONFIRM in the PRD. Parse defensively, leave `// TODO(confirm)`, and ask me.
 5. **Thresholds live in one file** (`core/thresholds.dart`). Never hard-code 28 / 32 / 60 / 75 / 1000 / 2000 in widgets.
 6. Air quality is a raw, uncalibrated ADC index (0-4095). Never label it ppm.
+7. **Assistant key exception (competition builds only).** The normal rule is no API key in the app. This build calls the Gemini REST API directly with a key supplied at build time via `String.fromEnvironment('GEMINI_API_KEY')` and `--dart-define-from-file`: `env.json` for web, `env.android.json` for Android. Both files are gitignored; only `env.example.json` / `env.android.example.json` (empty values) are committed. Use two restricted free-tier keys in a separate no-billing project (web key referrer-restricted, Android key API-restricted only), keep the release APK to team/booth devices, and delete both keys after the competition. The production design is a backend proxy (Firebase AI Logic with App Check). Run `tool/check_no_secrets.sh` before committing. `gemini-3.5-flash-lite` is the only model.
 
 ## Stack (don't substitute without asking)
 
-Flutter stable, `flutter_riverpod`, `go_router`, `firebase_core` / `firebase_auth` / `firebase_database`, `fl_chart`, `intl`. Keep new dependencies to a minimum and say why in your report.
+Flutter stable, `flutter_riverpod`, `go_router`, `firebase_core` / `firebase_auth` / `firebase_database`, `http`, `fl_chart`, `intl`. Keep new dependencies to a minimum and say why in your report.
 
 ## Code rules
 
@@ -41,11 +42,13 @@ Flutter stable, `flutter_riverpod`, `go_router`, `firebase_core` / `firebase_aut
 
 ```bash
 flutter pub get
-flutter run -d chrome
-flutter run                      # Android device/emulator
+flutter run -d chrome --dart-define-from-file=env.json
+flutter run --dart-define-from-file=env.android.json
 flutter analyze && flutter test
-flutter build apk --release
-flutter build web
+tool/check_no_secrets.sh
+flutter build apk --release --dart-define-from-file=env.android.json
+flutter build web --release --dart-define-from-file=env.json
+# Demo builds add: --dart-define=DEMO=true
 dart run build_runner build      # only if codegen is introduced
 ```
 

@@ -78,6 +78,13 @@ void main() {
     expect(find.text(AppStrings.askAboutRoomTitle), findsOneWidget);
     expect(find.text(AppStrings.askAeroSense), findsOneWidget);
     expect(find.text(AppStrings.summarize), findsOneWidget);
+    expect(find.text(AppStrings.assistantDemoScripted), findsOneWidget);
+  });
+
+  testWidgets('does not label live answers as scripted', (tester) async {
+    await tester.pumpWidget(harness());
+
+    expect(find.text(AppStrings.assistantDemoScripted), findsNothing);
   });
 
   testWidgets('the assistant action opens the /assistant route', (

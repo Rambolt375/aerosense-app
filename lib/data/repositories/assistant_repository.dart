@@ -2,9 +2,9 @@ import 'package:aerosense_app/data/models/assistant_message.dart';
 
 /// Contract for the Ask AeroSense assistant.
 ///
-/// No Firebase (or other provider SDK) types cross this boundary: the screen
-/// and providers only ever see plain strings and [AssistantMessage]s. Slice
-/// 7b-3 adds the live Firebase AI Logic implementation behind this interface.
+/// No provider or transport types cross this boundary: the screen and
+/// providers only ever see plain strings and [AssistantMessage]s. The live
+/// implementation is `GeminiRestAssistantRepository`.
 abstract class AssistantRepository {
   /// Asks [question] about the room.
   ///

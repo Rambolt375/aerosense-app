@@ -1,20 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:aerosense_app/core/app_check.dart';
-import 'package:aerosense_app/core/app_check_provider.dart';
 import 'package:aerosense_app/data/repositories/fake_assistant_repository.dart';
-import 'package:aerosense_app/data/repositories/firebase_ai_assistant_repository.dart';
+import 'package:aerosense_app/data/repositories/gemini_rest_assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/assistant/assistant_providers.dart';
-
-class _FixedAppCheck extends AppCheckNotifier {
-  _FixedAppCheck(this.status);
-
-  final AppCheckStatus status;
-
-  @override
-  AppCheckStatus build() => status;
-}
 
 class _DemoNotifier extends DemoModeNotifier {
   @override
@@ -22,13 +11,13 @@ class _DemoNotifier extends DemoModeNotifier {
 }
 
 ProviderContainer _container({
-  required AppCheckStatus appCheck,
+  required String key,
   String? uid,
   bool demo = false,
 }) {
   final container = ProviderContainer(
     overrides: [
-      appCheckStatusProvider.overrideWith(() => _FixedAppCheck(appCheck)),
+      geminiApiKeyProvider.overrideWithValue(key),
       currentUserUidProvider.overrideWithValue(uid),
       if (demo) demoModeProvider.overrideWith(_DemoNotifier.new),
     ],
@@ -39,52 +28,32 @@ ProviderContainer _container({
 
 void main() {
   group('assistantEnabledProvider', () {
-    test('is on only with App Check active and a signed-in user', () {
-      final enabled = _container(
-        appCheck: AppCheckStatus.active,
-        uid: 'visitor-1',
-      );
+    test('is on when the key is present and a user is signed in', () {
+      final container = _container(key: 'restricted-key', uid: 'visitor-1');
 
-      expect(enabled.read(assistantEnabledProvider), isTrue);
+      expect(container.read(assistantEnabledProvider), isTrue);
       expect(
-        enabled.read(assistantRepositoryProvider),
-        isA<FirebaseAiAssistantRepository>(),
+        container.read(assistantRepositoryProvider),
+        isA<GeminiRestAssistantRepository>(),
       );
     });
 
-    test('is off when App Check is not configured', () {
-      final container = _container(
-        appCheck: AppCheckStatus.notConfigured,
-        uid: 'visitor-1',
-      );
-
-      expect(container.read(assistantEnabledProvider), isFalse);
-      expect(container.read(assistantRepositoryProvider), isNull);
-    });
-
-    test('is off when App Check activation failed', () {
-      final container = _container(
-        appCheck: AppCheckStatus.failed,
-        uid: 'visitor-1',
-      );
+    test('is off when the key is missing', () {
+      final container = _container(key: '', uid: 'visitor-1');
 
       expect(container.read(assistantEnabledProvider), isFalse);
       expect(container.read(assistantRepositoryProvider), isNull);
     });
 
     test('is off when the visitor is signed out', () {
-      final container = _container(appCheck: AppCheckStatus.active, uid: null);
+      final container = _container(key: 'restricted-key', uid: null);
 
       expect(container.read(assistantEnabledProvider), isFalse);
       expect(container.read(assistantRepositoryProvider), isNull);
     });
 
-    test('is forced on in Demo Mode even without App Check or a user', () {
-      final container = _container(
-        appCheck: AppCheckStatus.notConfigured,
-        uid: null,
-        demo: true,
-      );
+    test('is forced on in Demo Mode with the scripted fake', () {
+      final container = _container(key: '', uid: null, demo: true);
 
       expect(container.read(assistantEnabledProvider), isTrue);
       expect(
@@ -93,30 +62,29 @@ void main() {
       );
     });
 
-    test('turning Demo Mode off falls back to the live gate', () {
-      final container = _container(
-        appCheck: AppCheckStatus.notConfigured,
-        uid: 'visitor-1',
-      );
+    test('turning Demo Mode off falls back to key plus signed-in gate', () {
+      final container = _container(key: 'restricted-key', uid: 'visitor-1');
 
       container.read(demoModeProvider.notifier).setDemo(true);
-      expect(container.read(assistantEnabledProvider), isTrue);
+      expect(
+        container.read(assistantRepositoryProvider),
+        isA<FakeAssistantRepository>(),
+      );
 
       container.read(demoModeProvider.notifier).setDemo(false);
-      expect(container.read(assistantEnabledProvider), isFalse);
-      expect(container.read(assistantRepositoryProvider), isNull);
-    });
-  });
-
-  group('AppCheckNotifier', () {
-    test('starts not configured so nothing is enabled before activation', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
       expect(
-        container.read(appCheckStatusProvider),
-        AppCheckStatus.notConfigured,
+        container.read(assistantRepositoryProvider),
+        isA<GeminiRestAssistantRepository>(),
       );
+    });
+
+    test('the same gate applies regardless of platform', () {
+      // The gate has no platform branch: web and Android read the same key
+      // define and the same auth state.
+      for (final uid in ['web-visitor', 'android-visitor']) {
+        final container = _container(key: 'restricted-key', uid: uid);
+        expect(container.read(assistantEnabledProvider), isTrue, reason: uid);
+      }
     });
   });
 }

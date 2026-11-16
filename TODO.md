@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 7b-3 (implementation complete — awaiting review). Live Ask AeroSense via Firebase AI Logic + App Check gating; no deploy. Human console steps and a real browser/phone smoke test remain.
+> **Current phase:** 7b-3 (implementation complete — awaiting review). Live Ask AeroSense via a direct Gemini REST client (web + Android) with build-time keys; no deploy. Key setup and a real browser/phone smoke test remain.
 
 ## Blockers / open questions (owner: human)
 
@@ -17,8 +17,8 @@
 - [x] Run `flutterfire configure` to register the Android app in the Firebase project and generate final `firebase_options.dart`
 - [ ] Hardware check: toggle in Medium clicks the relay; locked in Danger (needs real ESP32)
 - [x] Hardware check: verify real firmware status message strings against PRD Table III assumptions (confirmed: bare/prefixed keywords case-insensitive, Normal/Safe, Caution/Medium, Danger)
-- [ ] Firebase console steps for the live assistant (Phase 7b-3): enable AI Logic / Gemini API for `aerosense-502de`, register the reCAPTCHA Enterprise web site key, turn on App Check enforcement for AI Logic (required since 2026-11-02), confirm App Check "authenticated users" mode, and set AI monitoring sampling (see README "Ask AeroSense")
-- [ ] Smoke test Ask AeroSense on a real browser against the live project (signed in with a visitor account, App Check active) and on a team debug APK with a registered App Check debug token; confirm a real answer, the quota/offline friendly messages, and that the deterministic summary fallback appears on failure
+- [ ] Assistant key setup (Phase 7b-3): create a separate no-billing Google AI Studio project with two restricted free-tier keys (web key referrer-restricted, Android key API-restricted only), copy `env.example.json` / `env.android.example.json` to `env.json` / `env.android.json`, fill in the keys, and run `tool/check_no_secrets.sh` before committing
+- [ ] Smoke test Ask AeroSense on web and on a team/booth Android build with the keys supplied; confirm a real answer, the friendly error copy, and that the deterministic summary fallback appears on failure. Delete both keys after the competition.
 
 ## Phase 0: Setup
 - [x] Add dependencies (riverpod, go_router, firebase_*, fl_chart, intl)
@@ -198,24 +198,17 @@
   - [x] Dashboard "Ask AeroSense" entry appears only when `AppConfig.assistantEnabled` is true, forced true in Demo Mode; `AppConfig.assistantEnabled` itself stays `false`. (Superseded in 7b-3: the constant was removed in favour of `assistantEnabledProvider`.)
   - [x] Tests: prompt builder and JSON privacy, limiter (spacing, window, retryAfter, bucket isolation), fake repository answers/latency/error, screen states and responsive layout at 360/768/1280 px with 1.3x text, demo gating and `/assistant` navigation, top-level route without bottom nav.
   - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` all passing (498 tests).
-  - [x] Phase 7b-3: `firebase_ai` + `firebase_app_check`, live repository, App Check activation, end-to-end check.
-    - [x] Dependencies added with `flutter pub add firebase_ai firebase_app_check` (resolved `firebase_ai 5.1.0`, `firebase_app_check 0.5.1`, platform/web packages `0.5.1+3` / `0.3.1+3`); no conflict with `firebase_core ^5.1.0` / `firebase_auth ^7.0.1`.
-    - [x] `FirebaseAiAssistantRepository` (`data/repositories/firebase_ai_assistant_repository.dart`) is the only production file importing `firebase_ai`; it wraps a testable `AssistantAiClient` (`assistant_ai_client.dart`).
-    - [x] `FirebaseAiClient` uses `FirebaseAI.googleAI().generativeModel(...)` (Gemini Developer API backend), system instruction from `buildSystemInstruction`, `startChat(history: last 4)`, plain text only, no tools/function calling. `GenerationConfig`: `maxOutputTokens: 400`, `temperature: 0.3`, `ThinkingConfig.withThinkingLevel(ThinkingLevel.low)`.
-    - [x] 20 s timeout (`AppConfig.assistantTimeout`), 404/model-gone fallback to `gemini-3.5-flash-lite` attempted exactly once; no retries on quota, network, or blocked.
-    - [x] `AssistantFailure` / `classifyAssistantFailure` / `assistantFailureMessage` (`features/assistant/assistant_failure.dart`) map quota, service disabled or 403, model gone, blocked/empty, timeout/no network and unknown to friendly copy, all falling back to the deterministic summary.
-    - [x] App Check activation (`core/app_check.dart`, `core/app_check_provider.dart`) runs once after `Firebase.initializeApp` via `ProviderContainer` + `unawaited(...)`, never blocking `runApp`; failures/not-configured leave the assistant disabled with a debug-only log.
-    - [x] Web uses `ReCaptchaEnterpriseProvider` with `AppConfig.appCheckRecaptchaSiteKey` from `--dart-define=APPCHECK_RECAPTCHA_SITE_KEY` (never hard-coded); empty define means App Check stays `notConfigured`.
-    - [x] Local web debug token lives in a `kDebugMode` + localhost-gated conditional-import shim (`core/app_check_web_debug_web.dart`), not in `web/index.html`; Android uses the debug provider in debug builds only and stays assistant-disabled in release unless App Check activates.
-    - [x] `assistantEnabledProvider` replaces the `AppConfig.assistantEnabled` constant: true in Demo Mode (fake repository) or when App Check is active **and** a user is signed in.
-    - [x] `<` characters in device-provided text inside `<device_data>` are escaped to `&lt;` so firmware `statusMessage` cannot open or close the data block.
-    - [x] No question/answer logging in release builds (debug-only `debugPrint` of the failure kind, never the content).
-    - [x] Release-bundle guard against the web App Check debug token: `tool/check_web_release_appcheck.sh` plus `test/tooling/web_release_appcheck_guard_test.dart`; both fail if a token is injected into `build/web` (verified by temporarily injecting one).
-    - [x] Tests: failure classification, repository behaviour with a fake AI client (success, empty, blocked, quota, service, model fallback and no-fallback paths, timeout, history trimming), App Check activation states, assistant gating (demo / App Check / signed-out), and the release guard. No test touches the network.
-    - [x] README "Ask AeroSense (Firebase AI Logic + App Check)": console setup, authenticated-users mode, AI monitoring sampling plus an exclusion filter, web build command with the define, debug-token registration without committing it, guard script, and known limits.
-    - [x] `flutter build web --release --dart-define=APPCHECK_RECAPTCHA_SITE_KEY=...` succeeds; site key, both model names and `ReCaptchaEnterprise` present in the bundle.
-    - [x] `flutter build apk --release` succeeds with the new native plugins (`build/app/outputs/flutter-apk/app-release.apk`), so App Check adds no Android build-time requirement beyond Play Integrity.
-    - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` 537 tests passing.
+  - [x] Phase 7b-3 (revised 2026-11-16): direct Gemini REST client replaces the Firebase AI Logic + App Check route.
+    - [x] Removed `firebase_ai` and `firebase_app_check` from `pubspec.yaml`; deleted all App Check activation code, the web debug-token shim, `tool/check_web_release_appcheck.sh`, and the release-bundle guard test.
+    - [x] Added `http` as a direct dependency. `GeminiRestAssistantRepository` (`data/repositories/gemini_rest_assistant_repository.dart`) is the only production file that talks to Gemini and works on web and Android.
+    - [x] POSTs to `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent` with the key only in `x-goog-api-key`; body carries `systemInstruction`, `contents` (last 4 messages + question) and `generationConfig` (`maxOutputTokens: 600`, `temperature: 0.3`). No `thinkingConfig`.
+    - [x] Parsing tolerates extra fields (`thoughtSignature`, non-text parts), skips `thought: true` parts, joins every real text part, returns partial text on `MAX_TOKENS`, and handles `promptFeedback.blockReason` and missing/empty candidates.
+    - [x] 20 s timeout. Error copy: 400/403 "The assistant isn't set up right now."; 429 "The assistant is busy right now." (no retry); 503/overloaded retried once after ~1.5 s then "The assistant is busy right now. Try again in a minute."; timeout/no network "No connection."; blocked/empty "I couldn't answer that." Key and URL never logged.
+    - [x] `assistantEnabledProvider` is true when `GEMINI_API_KEY` is non-empty and a user is signed in (same rule on web and Android); Demo Mode is forced true and uses the scripted fake, labelled as scripted on the dashboard card. No key hides Ask; Summarize still works.
+    - [x] Keys come from `String.fromEnvironment('GEMINI_API_KEY')` via `env.json` (web) and `env.android.json` (Android). Both are gitignored; `env.example.json` / `env.android.example.json` are committed with empty values.
+    - [x] `tool/check_no_secrets.sh` fails on a Google API key prefix in tracked files, allowlisting only the three generated public Firebase client-config files.
+    - [x] Tests use `MockClient`: request shape (question not in the system instruction, key not in URL/body), model constant, thought/`thoughtSignature` parsing, `MAX_TOKENS` with and without text, blocked/empty, every error mapping, the single 503 retry, no retry on 429, and gating for key present/absent, signed in/out and Demo Mode. No test touches the network.
+    - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` passing; web release build and Android release APK build verified locally.
 
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).
@@ -342,8 +335,8 @@
   - Verified the decision engine still reports `PreventiveUiState.running` when `preventiveTrigger == true` (the whole run), and the card disables the demo button on trigger alone even if the fan state has not yet updated.
   - Added tests: decline pulse sequence (`true→false`, fan never starts), accepted run keeps trigger `true`, `RunPreVentilationNotifier` decline message on real decline, no decline message on accepted run, and `PreVentilationCard` Running state driven by `preventiveTrigger = true` with fan still off. Suite now 383 tests, `flutter analyze` clean, `dart format` clean.
 - 2026-11-15: Phase 7b plan approved and saved to `docs/phase-7b-plan.md`; slice 7b-1 implemented.
-  - Android App Check decision: debug-token build for team devices only (never distributed); visitors use the web build for the live assistant. `AppConfig.assistantEnabled` keeps the Ask action hidden until App Check is active. Summarize always works.
-  - Model decision: `gemini-3.8-flash` with `gemini-3.5-flash-lite` as a one-line fallback constant; last 4 messages; assistant language follows the same EN/ID selector, defaulting to Indonesian only when the device locale is Indonesian.
+  - Assistant transport and key exception decision: the competition build uses a direct Gemini REST client with two restricted free-tier keys in a separate no-billing project supplied at build time (web key referrer-restricted, Android key API-restricted only). The production design remains a backend proxy (Firebase AI Logic with App Check). Summarize always works.
+  - Model decision: `gemini-3.5-flash-lite` is the only model; no fallback constant. Last 4 messages; assistant language follows the same EN/ID selector, defaulting to Indonesian only when the device locale is Indonesian.
   - Summary rules: bare tier keywords print `Firmware tier: X` without a quote; descriptive messages are quoted; humidity reads "not used by the device yet" until the preset's confirmation flag is true; forecast peaks use "Predicted ... peak around HH:mm".
   - Added `ThresholdPreset.humidityConfirmedByFirmware` (default false) and `Thresholds.humidityConfirmedByFirmware`; `fromJson` accepts `humidityConfirmedByFirmware` or `humidityConfirmed` only as a literal `true`.
   - The sheet computes the summary lazily on open and reuses already-loaded history; no new dependencies, no Firebase AI calls, no network required.
@@ -357,29 +350,26 @@
   - Test suite now 443 tests, `flutter analyze` clean, `dart format` clean.
 - 2026-11-15: Phase 7b-2 implemented (fake repository only, no Firebase AI).
   - `AssistantRepository` takes the system instruction, prior history and question separately and returns a plain answer string; error typing is deferred to 7b-3 so the UI contract does not change twice.
-  - `assistantRepositoryProvider` is `Provider<AssistantRepository?>`: fake under Demo Mode, `null` otherwise. A null repository shows "unavailable" rather than pretending the assistant works before App Check exists.
+  - `assistantRepositoryProvider` is `Provider<AssistantRepository?>`: fake under Demo Mode, `null` otherwise. A null repository shows "unavailable" rather than pretending the assistant works before a build-time key exists.
   - The question never enters the system instruction: `AssistantRequest` carries it beside the instruction, and a test asserts the question string is absent from the instruction.
   - Prompt JSON is an allow-list copied key by key (no `toJson` passthrough), so a future model field cannot leak a uid, email, name, photo, token or device UID; tests assert each of those is absent.
   - Limiter constants live in `AppConfig` (6 / 10 min / 1.5 s) and the limiter is kept alive across screen visits so the window cannot be reset by closing the screen.
   - Chat keeps only the last 4 messages (`AppConfig.assistantMaxMessages`) and stores nothing; the provider is auto-dispose.
-  - `/assistant` is a top-level route: no bottom navigation on the screen. The dashboard entry is Demo-gated by `AppConfig.assistantEnabled || demoMode`, with the constant itself still `false`.
+  - `/assistant` is a top-level route: no bottom navigation on the screen. The dashboard entry is gated by `assistantEnabledProvider` (Demo Mode, or key plus signed-in user).
   - The 300-character cap is enforced in the composer (`AppConfig.assistantMaxInputChars`).
   - Screen layout: language `SegmentedButton` and chips scroll with the transcript; the composer is a single text field plus send button so the 360 px / 1.3x layout has no overflow; disclaimer and privacy line stay pinned.
   - Test suite now 498 tests, `flutter analyze` clean, `dart format` clean.
-- 2026-11-16: Phase 7b-3 implemented (live Ask AeroSense, no deploy).
-  - Dependencies verified against pub.dev and resolved by `flutter pub add`: `firebase_ai 5.1.0`, `firebase_app_check 0.5.1` (with `firebase_app_check_platform_interface 0.5.1+3`, `firebase_app_check_web 0.3.1+3`). No conflict with `firebase_core 5.1.0` / `firebase_auth 7.0.1`, so no versions were pinned by hand.
-  - `FirebaseAI.googleAI()` (Gemini Developer API backend) rather than `FirebaseAI.vertexAI()`: it matches the console setup for this project and needs no billing account. Model is constructed per request because the system instruction is per-request data.
-  - `ThinkingConfig.withThinkingLevel(ThinkingLevel.low)` is set from the documented enum; `ThinkingLevel.minimal` is not supported by `gemini-3.8-flash` (returns 400), so it is deliberately not used. Confirmed against the Firebase AI Logic docs before writing the call.
-  - App Check enforcement for AI Logic became mandatory on 2026-11-02, so activation is a hard requirement for the live assistant. It runs after `Firebase.initializeApp` from `main.dart` through a `ProviderContainer` and is awaited by nobody (`unawaited`) before `runApp`, wrapped in `UncontrolledProviderScope`. A slow or failing App Check can never delay or crash app start; the provider's default `AppCheckStatus.notConfigured` keeps the assistant hidden and every test starts in that state.
-  - Web reCAPTCHA Enterprise site key arrives only through `--dart-define=APPCHECK_RECAPTCHA_SITE_KEY`. It is a public key, but hard-coding it would silently enable the assistant on builds that were never registered, so an empty define is treated as "not configured".
-  - The local web debug token moved out of `web/index.html` into a conditional-import shim (`core/app_check_web_debug_web.dart`) gated on `kDebugMode` plus a localhost origin. Anything in `index.html` ships to production; a compile-time conditional cannot.
-  - Release-bundle guard: `firebase_app_check_web` always compiles its own `WebDebugProvider` branch, so exactly two `FIREBASE_APPCHECK_DEBUG_TOKEN` references exist in `build/web/main.dart.js` and are unreachable for `ReCaptchaEnterpriseProvider`. `tool/check_web_release_appcheck.sh` and a Dart test therefore allow exactly those two in that one file and zero occurrences anywhere else in `build/web`; a count change is treated as a vendor-behaviour change worth re-reviewing.
-  - Exactly one fallback attempt (`gemini-3.5-flash-lite`) and only when the failure classified as `modelUnavailable` (404 / model not found). Quota, network, and blocked failures never retry, per the write/retry rules and to avoid burning quota on an unfixable request.
-  - Error classification is SDK-free string matching in `classifyAssistantFailure` because `firebase_ai` surfaces its typed errors through `toString()`. Order matters: quota, then service/permission/403/not-enabled, then model-gone, then blocked, then network, then unknown. `serviceUnavailable` and `modelUnavailable` intentionally share one friendly message.
-  - `AppConfig.assistantEnabled` was removed. `assistantEnabledProvider` computes it: true in Demo Mode (fake repository), otherwise `appCheckStatus == active && currentUserUid != null`. A signed-in user without App Check, or App Check without a user, keeps the entry hidden.
-  - Question and answer text is never logged; only the failure kind is printed, and only under `kDebugMode`.
-  - Test suite now 537 tests, `flutter analyze` clean, `dart format` clean.
+- 2026-11-16: Phase 7b-3 revised: the Firebase AI Logic + App Check route was replaced by a direct Gemini REST client (live Ask AeroSense, no deploy).
+  - Removed `firebase_ai` / `firebase_app_check` and added `http 1.6.0` as a direct dependency. The direct client works on both web and Android.
+  - `GeminiRestAssistantRepository` is the only file that talks to Gemini. It POSTs to `/v1beta/models/gemini-3.5-flash-lite:generateContent` with the key only in the `x-goog-api-key` header. The key never appears in the URL, body, error message or log.
+  - Request body: `systemInstruction`, `contents` (last 4 messages plus the question), `generationConfig` (`maxOutputTokens: 600`, `temperature: 0.3`). No `thinkingConfig`, because the docs error on models that do not support thinking and this model is not confirmed to.
+  - Response parsing joins every non-thought text part, ignores extra fields such as `thoughtSignature`, returns partial text on `MAX_TOKENS`, and treats `promptFeedback.blockReason` or missing/empty candidates correctly.
+  - 20 s timeout. 400/403 -> "The assistant isn't set up right now."; 429 -> "The assistant is busy right now." (no retry); 503/overloaded -> one retry on the same model after ~1.5 s, then "The assistant is busy right now. Try again in a minute."; timeout/no network -> "No connection."; blocked/empty -> "I couldn't answer that." Every failure keeps the deterministic summary on screen.
+  - `assistantEnabledProvider` is true when `GEMINI_API_KEY` is non-empty and a user is signed in, with the same rule on web and Android. Demo Mode is forced true with the scripted fake and is labelled as scripted on the dashboard card. No key hides Ask; Summarize still works.
+  - Keys come from `String.fromEnvironment('GEMINI_API_KEY')` via `env.json` (web) and `env.android.json` (Android), both gitignored. `env.example.json` / `env.android.example.json` are committed with empty values. `tool/check_no_secrets.sh` fails on a Google API key prefix in tracked files, allowlisting only the three generated public Firebase client-config files.
+  - Tests use `package:http/testing.dart` `MockClient`: request shape (question never in the system instruction, key not in URL/body), the model constant, `thoughtSignature` parsing, `MAX_TOKENS` with and without text, every error mapping, the single 503 retry, no retry on 429, and gating for key present/absent, signed in/out and Demo Mode. No test touches the network.
+  - Test suite passes with `dart format .` clean and `flutter analyze` 0 issues; web release and Android release APK builds verified locally.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.
-- `flutter build apk` warns that `firebase_ai`, `firebase_app_check`, `firebase_auth`, `firebase_core`, and `firebase_database` still apply the Kotlin Gradle Plugin: "Future versions of Flutter will fail to build if your app uses plugins that apply KGP." Builds work on the current Flutter stable; this becomes a real blocker only when a future Flutter removes KGP support, and the fix has to come from the Firebase plugin versions.
+- `flutter build apk` warns that `firebase_auth`, `firebase_core`, and `firebase_database` still apply the Kotlin Gradle Plugin: "Future versions of Flutter will fail to build if your app uses plugins that apply KGP." Builds work on the current Flutter stable; this becomes a real blocker only when a future Flutter removes KGP support, and the fix has to come from the Firebase plugin versions.

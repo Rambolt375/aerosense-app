@@ -48,3 +48,8 @@ app.*.map.json
 .widget_preview/
 
 .env
+
+# Build-time Gemini keys. Real files are created locally and never committed;
+# use env.example.json / env.android.example.json as templates.
+env.json
+env.android.json

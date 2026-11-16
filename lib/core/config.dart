@@ -11,31 +11,26 @@ class AppConfig {
 
   // --- Ask AeroSense assistant (Phase 7b) ---
 
-  /// Stable Gemini model for the live assistant (no billing required).
-  static const String assistantModel = 'gemini-3.8-flash';
-
-  /// One-line fallback used only when the primary model itself is unavailable.
+  /// The only Gemini model used by the live assistant.
   ///
-  /// Quota, network and blocked failures never fall back: a second request
-  /// would spend quota on a failure the fallback cannot fix.
-  static const String assistantFallbackModel = 'gemini-3.5-flash-lite';
+  /// Verified working with the project's restricted free-tier key. There is no
+  /// fallback model: a request either succeeds on this model or falls back to
+  /// the deterministic summary in the UI.
+  static const String assistantModel = 'gemini-3.5-flash-lite';
+
+  /// Gemini API key supplied at build time.
+  ///
+  /// `String.fromEnvironment` is compile-time only, so the key is supplied with
+  /// `--dart-define-from-file=env.json` (web) or `env.android.json` (Android).
+  /// Empty means the live assistant is hidden; "Summarize" still works.
+  static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 
   /// Output cap per answer (the prompt asks for under ~120 words).
-  static const int assistantMaxOutputTokens = 400;
+  static const int assistantMaxOutputTokens = 600;
 
   /// Low sampling temperature: the assistant explains given facts, it does not
   /// brainstorm.
   static const double assistantTemperature = 0.3;
-
-  /// reCAPTCHA Enterprise site key for web App Check.
-  ///
-  /// Public value supplied at build time:
-  /// `flutter build web --dart-define=APPCHECK_RECAPTCHA_SITE_KEY=...`.
-  /// Empty means App Check is not configured for this build, and the assistant
-  /// stays hidden instead of shipping an unprotected live path.
-  static const String appCheckRecaptchaSiteKey = String.fromEnvironment(
-    'APPCHECK_RECAPTCHA_SITE_KEY',
-  );
 
   /// Maximum input length for one visitor question.
   static const int assistantMaxInputChars = 300;
@@ -55,6 +50,9 @@ class AppConfig {
 
   /// One request is abandoned after this long; the summary is shown instead.
   static const Duration assistantTimeout = Duration(seconds: 20);
+
+  /// Delay before the single retry after a 503 / overloaded response.
+  static const Duration assistantRetryDelay = Duration(milliseconds: 1500);
 
   /// Recent conversation messages kept in memory and sent as chat history.
   static const int assistantMaxMessages = 4;
