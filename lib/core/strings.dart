@@ -14,6 +14,27 @@ class AppStrings {
   static const navForecast = 'Forecast';
   static const navSettings = 'Settings';
 
+  // Account & Profile (Phase 8a)
+  static const accountMenu = 'Account menu';
+  static const profileTitle = 'Profile';
+  static const profileEditName = 'Edit name';
+  static const profileSave = 'Save';
+  static const profileCancel = 'Cancel';
+  static const profileNameSaved = 'Name saved';
+  static const profileNameSaveFailed =
+      'Could not save your name. Check your connection.';
+  static const profileNameInvalid = 'Enter a name with 1 to 40 characters.';
+  static const profileNameLabel = 'Display name';
+  static const profileCaption = 'Changing your name only affects AeroSense.';
+  static const profileDemoNotSaved = 'Demo Mode: not saved';
+  static const placeholderValue = '--';
+  static const providerGoogle = 'Google account';
+  static const providerTeam = 'Team account';
+  static const providerDemo = 'Demo';
+  static const signOut = 'Sign out';
+  static const signOutConfirm =
+      'Are you sure you want to sign out of AeroSense?';
+
   // Tier Status (DESIGN.md §8)
   static const tierSafeTitle = 'Room is safe';
   static const tierMediumTitle = 'Room is getting stuffy';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
@@ -12,6 +13,7 @@ import 'package:aerosense_app/features/auth/login_screen.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
 import 'package:aerosense_app/features/history/history_screen.dart';
+import 'package:aerosense_app/features/profile/profile_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 
 class _AlwaysDemoNotifier extends DemoModeNotifier {
@@ -132,6 +134,23 @@ void main() {
 
         expect(tester.takeException(), isNull);
         expect(find.byType(SettingsScreen), findsOneWidget);
+      });
+
+      testWidgets('Profile renders cleanly at $label (textScale 1.3)', (
+        tester,
+      ) async {
+        tester.view.physicalSize = size;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+
+        await tester.pumpWidget(
+          buildApp(const ProfileScreen(), textScale: 1.3),
+        );
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(find.byType(ProfileScreen), findsOneWidget);
+        expect(find.text(AppStrings.profileCaption), findsOneWidget);
       });
 
       testWidgets('Login renders cleanly at $label (textScale 1.3)', (

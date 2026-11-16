@@ -125,7 +125,13 @@ class _ConfigurableAuthRepository implements AuthRepository {
   Stream<User?> authStateChanges() => _authStream;
 
   @override
+  Stream<User?> userChanges() => _authStream;
+
+  @override
   User? get currentUser => user;
+
+  @override
+  Future<void> updateDisplayName(String name) async {}
 
   @override
   Future<void> signIn({

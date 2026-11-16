@@ -15,6 +15,7 @@ import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/features/history/history_screen.dart';
+import 'package:aerosense_app/features/profile/profile_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 import 'package:aerosense_app/shared/demo_ribbon.dart';
 
@@ -78,6 +79,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/assistant',
         name: 'assistant',
         builder: (context, state) => const AssistantScreen(),
+      ),
+      // Full-screen profile, also outside the shell (reached from the account
+      // menu). The auth guard above protects it like any other route.
+      GoRoute(
+        path: '/profile',
+        name: 'profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
       // Debug screen — only registered in debug builds.
       if (kDebugMode)

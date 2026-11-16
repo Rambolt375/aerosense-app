@@ -6,10 +6,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 /// interface so the fake implementation can substitute cleanly in Demo Mode.
 abstract class AuthRepository {
   /// Stream of the signed-in [User]. Emits null when signed out.
+  ///
+  /// Fires on sign-in and sign-out only; profile edits do not re-emit here.
   Stream<User?> authStateChanges();
+
+  /// Stream of the signed-in [User] that also emits when the profile changes
+  /// (display name, photo). Used by the avatar and the profile screen so a
+  /// rename shows up without a reload. Emits null when signed out.
+  Stream<User?> userChanges();
 
   /// Returns the currently signed-in [User] synchronously, or null.
   User? get currentUser;
+
+  /// Updates the signed-in user's display name.
+  ///
+  /// The name is normalized (trimmed, inner whitespace collapsed, control
+  /// characters removed) and must be 1-40 characters. This is a Firebase Auth
+  /// profile change, not a Realtime Database write.
+  ///
+  /// Throws [AuthFailure] when the name is invalid or the update fails.
+  Future<void> updateDisplayName(String name);
 
   /// Signs in with [email] and [password].
   ///

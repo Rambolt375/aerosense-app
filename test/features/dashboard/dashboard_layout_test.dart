@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
+import 'package:aerosense_app/data/repositories/fake_auth_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_system_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
@@ -18,6 +19,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.value(
@@ -78,6 +80,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.value(
@@ -114,6 +117,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.value(
@@ -160,6 +164,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.value(
@@ -202,6 +207,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.value(const SystemState()).asBroadcastStream(),
@@ -225,6 +231,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
             systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
             systemStateProvider.overrideWith(
               (_) => Stream.error(Exception('Test error')),

@@ -6,6 +6,7 @@ import 'package:aerosense_app/features/forecast/residual_gate.dart';
 import 'package:aerosense_app/features/forecast/robust_diurnal_fitter.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
 import 'package:aerosense_app/features/forecast/widgets/preventive_card.dart';
+import 'package:aerosense_app/shared/account_avatar_button.dart';
 
 /// Diurnal forecasting screen (PRD §FR-6).
 ///
@@ -38,7 +39,10 @@ class ForecastScreen extends ConsumerWidget {
     final fitState = ref.watch(diurnalFitProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Diurnal Forecast')),
+      appBar: AppBar(
+        title: const Text('Diurnal Forecast'),
+        actions: const [AccountAvatarButton()],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;

@@ -6,9 +6,13 @@ import 'package:aerosense_app/core/theme_mode_provider.dart';
 import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
+import 'package:aerosense_app/shared/account_avatar_button.dart';
 
 /// Settings screen providing read-only hardware thresholds, forecast parameters,
-/// theme selection, Demo Mode controls, and account management.
+/// theme selection, and Demo Mode controls.
+///
+/// The account card moved to the profile page in Phase 8a; the account menu in
+/// the app bar is the only account entry point.
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -24,7 +28,10 @@ class SettingsScreen extends ConsumerWidget {
         : 'Source: built-in (firmware defaults)';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(
+        title: const Text('Settings'),
+        actions: const [AccountAvatarButton()],
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
@@ -530,129 +537,6 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
               ),
-
-              const SizedBox(height: 16),
-
-              // ---------------------------------------------------------------
-              // User Account Card
-              // ---------------------------------------------------------------
-              () {
-                final user =
-                    ref.watch(authStateProvider).value ??
-                    ref.watch(authRepositoryProvider).currentUser;
-                final displayName = user?.displayName?.isNotEmpty == true
-                    ? user!.displayName!
-                    : (isDemo ? 'Demo User' : 'Team Member');
-                final email =
-                    user?.email ?? (isDemo ? 'demo@aerosense.local' : '--');
-                final initial = displayName.isNotEmpty
-                    ? displayName[0].toUpperCase()
-                    : (email.isNotEmpty ? email[0].toUpperCase() : 'U');
-                bool isGoogle = false;
-                try {
-                  isGoogle =
-                      user?.providerData.any(
-                        (p) => p.providerId == 'google.com',
-                      ) ??
-                      false;
-                } catch (_) {}
-
-                return Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text('Account', style: theme.textTheme.titleMedium),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 24,
-                              foregroundImage:
-                                  user?.photoURL != null &&
-                                      user!.photoURL!.isNotEmpty
-                                  ? NetworkImage(user.photoURL!)
-                                  : null,
-                              onForegroundImageError:
-                                  user?.photoURL != null &&
-                                      user!.photoURL!.isNotEmpty
-                                  ? (exception, stackTrace) {}
-                                  : null,
-                              child: Text(
-                                initial,
-                                style: theme.textTheme.titleMedium,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    displayName,
-                                    style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    email,
-                                    style: theme.textTheme.bodyMedium?.copyWith(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Chip(
-                              label: Text(
-                                isDemo
-                                    ? 'Demo'
-                                    : (isGoogle ? 'Google' : 'Team'),
-                              ),
-                              visualDensity: VisualDensity.compact,
-                              padding: EdgeInsets.zero,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        OutlinedButton.icon(
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Sign out'),
-                          onPressed: () async {
-                            final shouldSignOut = await showDialog<bool>(
-                              context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Sign out'),
-                                content: const Text(
-                                  'Are you sure you want to sign out of AeroSense?',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(false),
-                                    child: const Text('Cancel'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () =>
-                                        Navigator.of(ctx).pop(true),
-                                    child: const Text('Sign out'),
-                                  ),
-                                ],
-                              ),
-                            );
-
-                            if (shouldSignOut == true) {
-                              await ref.read(authRepositoryProvider).signOut();
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }(),
 
               const SizedBox(height: 16),
 

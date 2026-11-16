@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/core/strings.dart';
+import 'package:aerosense_app/data/repositories/auth_repository.dart';
 import 'package:aerosense_app/data/repositories/firebase_auth_repository.dart';
 import 'package:aerosense_app/data/repositories/fake_auth_repository.dart';
 
@@ -65,6 +67,61 @@ void main() {
 
       await repo.signInWithGoogle();
       expect(repo.currentUser, isNotNull);
+    });
+
+    test('updateDisplayName normalizes and updates the current user', () async {
+      final repo = FakeAuthRepository();
+      addTearDown(repo.dispose);
+
+      await repo.updateDisplayName('  Ada   Lovelace \u0007');
+
+      expect(repo.currentUser!.displayName, 'Ada Lovelace');
+    });
+
+    test('rejects an empty name without changing the profile', () async {
+      final repo = FakeAuthRepository();
+      addTearDown(repo.dispose);
+
+      await expectLater(
+        repo.updateDisplayName('   '),
+        throwsA(
+          isA<AuthFailure>().having(
+            (e) => e.message,
+            'message',
+            AppStrings.profileNameInvalid,
+          ),
+        ),
+      );
+      expect(repo.currentUser!.displayName, 'Demo User');
+    });
+
+    test('userChanges emits the current user on subscribe', () async {
+      final repo = FakeAuthRepository();
+      addTearDown(repo.dispose);
+
+      await repo.updateDisplayName('Ada Lovelace');
+
+      // A late listener still sees the latest profile, not just future edits.
+      final first = await repo.userChanges().first;
+      expect(first?.displayName, 'Ada Lovelace');
+    });
+
+    test('userChanges emits again after a profile edit', () async {
+      final repo = FakeAuthRepository();
+      addTearDown(repo.dispose);
+
+      final events = <String?>[];
+      final subscription = repo.userChanges().listen(
+        (user) => events.add(user?.displayName),
+      );
+      addTearDown(subscription.cancel);
+      await pumpEventQueue();
+
+      await repo.updateDisplayName('Grace Hopper');
+      await pumpEventQueue();
+
+      expect(events.first, 'Demo User');
+      expect(events.last, 'Grace Hopper');
     });
   });
 }

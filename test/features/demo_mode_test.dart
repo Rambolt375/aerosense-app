@@ -342,7 +342,13 @@ class _MockLiveAuthRepository implements AuthRepository {
   Stream<User?> authStateChanges() => Stream.value(null);
 
   @override
+  Stream<User?> userChanges() => authStateChanges();
+
+  @override
   User? get currentUser => null;
+
+  @override
+  Future<void> updateDisplayName(String name) async {}
 
   @override
   Future<void> signIn({

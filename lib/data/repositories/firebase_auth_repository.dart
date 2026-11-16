@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:aerosense_app/core/account_name.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
 
 /// Firebase Auth implementation of [AuthRepository].
@@ -15,7 +17,29 @@ class FirebaseAuthRepository implements AuthRepository {
   Stream<User?> authStateChanges() => _auth.authStateChanges();
 
   @override
+  Stream<User?> userChanges() => _auth.userChanges();
+
+  @override
   User? get currentUser => _auth.currentUser;
+
+  @override
+  Future<void> updateDisplayName(String name) async {
+    final user = _auth.currentUser;
+    final clean = normalizeDisplayName(name);
+    if (user == null) {
+      throw const AuthFailure(AppStrings.profileNameSaveFailed);
+    }
+    if (clean == null) {
+      throw const AuthFailure(AppStrings.profileNameInvalid);
+    }
+    try {
+      // Updating the local profile also re-emits on userChanges(), so the
+      // avatar and the profile screen refresh without a reload.
+      await user.updateDisplayName(clean);
+    } catch (_) {
+      throw const AuthFailure(AppStrings.profileNameSaveFailed);
+    }
+  }
 
   @override
   Future<void> signIn({required String email, required String password}) async {

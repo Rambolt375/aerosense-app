@@ -11,6 +11,7 @@ import 'package:aerosense_app/features/dashboard/widgets/ask_about_room_card.dar
 import 'package:aerosense_app/features/dashboard/widgets/fan_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
+import 'package:aerosense_app/shared/account_avatar_button.dart';
 
 /// Live dashboard screen with metric tiles, tier banner, and fan control.
 ///
@@ -25,7 +26,10 @@ class DashboardScreen extends ConsumerWidget {
     final deviceStatus = ref.watch(deviceStatusProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('AeroSense')),
+      appBar: AppBar(
+        title: const Text('AeroSense'),
+        actions: const [AccountAvatarButton()],
+      ),
       body: systemState.when(
         skipLoadingOnReload: true,
         data: (state) =>

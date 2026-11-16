@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:aerosense_app/data/models/account_info.dart';
 import 'package:aerosense_app/data/models/forecast_preferences.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/auth_repository.dart';
@@ -53,7 +54,20 @@ final fakeSystemRepositoryProvider = Provider<FakeSystemRepository>((ref) {
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final isDemo = ref.watch(demoModeProvider);
-  return isDemo ? FakeAuthRepository() : FirebaseAuthRepository();
+  return isDemo
+      ? ref.watch(fakeAuthRepositoryProvider)
+      : FirebaseAuthRepository();
+});
+
+/// Dedicated [FakeAuthRepository] provider for Demo Mode.
+///
+/// Watches [demoModeProvider] so the change stream is closed whenever demo mode
+/// is toggled off, and the in-memory profile edit is discarded.
+final fakeAuthRepositoryProvider = Provider<FakeAuthRepository>((ref) {
+  ref.watch(demoModeProvider);
+  final repo = FakeAuthRepository();
+  ref.onDispose(repo.dispose);
+  return repo;
 });
 
 final systemRepositoryProvider = Provider<SystemRepository>((ref) {
@@ -81,6 +95,45 @@ final historyRepositoryProvider = Provider<HistoryRepository>((ref) {
 final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
+
+/// Stream of the signed-in [User] that also emits on profile changes.
+final userChangesProvider = StreamProvider<User?>((ref) {
+  return ref.watch(authRepositoryProvider).userChanges();
+});
+
+/// Plain account view for the avatar and the profile screen.
+///
+/// Built from [AuthRepository.userChanges] and mapped to a fresh [AccountInfo]
+/// per event, so a rename repaints the avatar even when the auth layer re-emits
+/// the same user instance.
+final accountProvider = StreamProvider<AccountInfo?>((ref) {
+  final isDemo = ref.watch(demoModeProvider);
+  return ref
+      .watch(authRepositoryProvider)
+      .userChanges()
+      .map(
+        (user) =>
+            user == null ? null : _accountInfoFromUser(user, isDemo: isDemo),
+      );
+});
+
+AccountInfo _accountInfoFromUser(User user, {required bool isDemo}) {
+  var isGoogle = false;
+  try {
+    isGoogle = user.providerData.any((p) => p.providerId == 'google.com');
+  } catch (_) {}
+
+  final photo = user.photoURL;
+  return AccountInfo(
+    displayName: user.displayName ?? '',
+    email: user.email ?? '',
+    photoUrl: photo == null || photo.isEmpty ? null : photo,
+    kind: isDemo
+        ? AccountProviderKind.demo
+        : (isGoogle ? AccountProviderKind.google : AccountProviderKind.team),
+    isDemo: isDemo,
+  );
+}
 
 /// Signed-in account id, exposed as a plain string so UI/providers do not need
 /// Firebase types. Used only for the Ask AeroSense client rate-limit bucket.

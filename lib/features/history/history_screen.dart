@@ -9,6 +9,7 @@ import 'package:aerosense_app/features/history/widgets/chart_skeleton.dart';
 import 'package:aerosense_app/features/history/widgets/history_error_card.dart';
 import 'package:aerosense_app/features/history/widgets/metric_chart_card.dart';
 import 'package:aerosense_app/features/history/widgets/range_selector.dart';
+import 'package:aerosense_app/shared/account_avatar_button.dart';
 import 'package:aerosense_app/shared/empty_state.dart';
 
 /// Historical telemetry charts screen (PRD §FR-5).
@@ -25,7 +26,10 @@ class HistoryScreen extends ConsumerWidget {
     final selectedRange = ref.watch(selectedRangeProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('History')),
+      appBar: AppBar(
+        title: const Text('History'),
+        actions: const [AccountAvatarButton()],
+      ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isWide = constraints.maxWidth >= 900;

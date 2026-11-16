@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 7b-3 (implementation complete — awaiting review). Live Ask AeroSense via a direct Gemini REST client (web + Android) with build-time keys; no deploy. Key setup and a real browser/phone smoke test remain.
+> **Current phase:** 8a (profile page — implementation complete, awaiting review). Slice 8b (assistant speed dial) is planned in `docs/phase-8-plan.md` and NOT started.
 
 ## Blockers / open questions (owner: human)
 
@@ -210,6 +210,20 @@
     - [x] Tests use `MockClient`: request shape (question not in the system instruction, key not in URL/body), model constant, thought/`thoughtSignature` parsing, `MAX_TOKENS` with and without text, blocked/empty, every error mapping, the single 503 retry, no retry on 429, and gating for key present/absent, signed in/out and Demo Mode. No test touches the network.
     - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` passing; web release build and Android release APK build verified locally.
 
+## Phase 8a: Profile page (implementation complete — awaiting review)
+- [x] `AuthRepository.updateDisplayName(String)` + `userChanges()` added to the interface; `FirebaseAuthRepository` uses `_auth.userChanges()` and `currentUser.updateDisplayName`, mapping every platform error to `AuthFailure("Could not save your name. Check your connection.")`.
+- [x] `FakeAuthRepository` keeps one mutable synthetic user, emits on profile edits and is recreated per Demo Mode session (in-memory only).
+- [x] Pure `lib/core/account_name.dart`: `normalizeDisplayName` (trim, collapse inner whitespace, strip control characters, 1-40 grapheme clusters) and `accountInitial` (name → email local part → `?`, uppercased, emoji safe via `Characters`).
+- [x] `AccountInfo` (plain Dart: name, email, photo, provider kind, demo flag) built in the data layer, so no UI file imports `firebase_auth`. `accountProvider` maps `userChanges` to a fresh `AccountInfo` per event so a rename repaints the avatar immediately.
+- [x] Top-level `/profile` route outside the shell (no bottom navigation, auth guard inherited, automatic back arrow). Shows a 96 dp avatar, name, read-only email, provider chip (Google account / Team account / Demo), the caption "Changing your name only affects AeroSense.", inline Edit name (field + Save/Cancel, inline validation, "Name saved" snackbar) and a Sign out button using the shared confirmation dialog. Only the name is editable.
+- [x] Photo handling: `Image.network` with a loading placeholder, `webHtmlElementStrategy: WebHtmlElementStrategy.fallback` (verified in the installed Flutter 3.47.9 SDK docs: fetched bytes first, HTML `<img>` platform view only when the fetch fails, so CanvasKit CORS failures degrade gracefully) and an `errorBuilder` that renders the initial.
+- [x] Account avatar in the app bar of all four shell tabs (works with both `NavigationBar` and the wide `NavigationRail`): 40 dp visual inside a 48 dp target, tooltip with the account name, semantics "Account menu", menu with exactly two items (Profile, Sign out) and no sign-out without confirmation. Absent on `/login`, `/profile` and `/assistant`.
+- [x] Settings account card and its tests removed; theme switcher, thresholds, forecast parameters, Demo controls and the team pre-ventilation card untouched. The sign-out dialog is now shared (`lib/shared/sign_out_dialog.dart`).
+- [x] Demo Mode: fake user, chip reads "Demo", editing works in memory and is labelled "Demo Mode: not saved".
+- [x] Tests: name validation and initial logic (12), fake repository profile stream/errors (5), profile screen states incl. photo fallback and Demo Mode (10), account avatar/menu/routes (9), plus Profile in the responsive audit at 360/768/1280 with 1.3x text. Existing auth mocks and the dashboard tests updated for the new interface member and the app-bar avatar.
+- [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` 565 tests passing.
+- [ ] Not started: slice 8b (assistant speed dial, offline tier banner wording, README/DESIGN updates) — pending approval of 8a.
+
 ## Decisions log
 - 2026-11-07: Phase 0 dependencies added via `flutter pub add` without hand-writing versions (`flutter_riverpod`, `go_router`, `firebase_core`, `firebase_auth`, `firebase_database`, `fl_chart`, `intl`).
 - 2026-11-07: SDK constraint `sdk: ^3.13.7` preserved as created by Flutter SDK 3.47.9.
@@ -369,6 +383,14 @@
   - Keys come from `String.fromEnvironment('GEMINI_API_KEY')` via `env.json` (web) and `env.android.json` (Android), both gitignored. `env.example.json` / `env.android.example.json` are committed with empty values. `tool/check_no_secrets.sh` fails on a Google API key prefix in tracked files, allowlisting only the three generated public Firebase client-config files.
   - Tests use `package:http/testing.dart` `MockClient`: request shape (question never in the system instruction, key not in URL/body), the model constant, `thoughtSignature` parsing, `MAX_TOKENS` with and without text, every error mapping, the single 503 retry, no retry on 429, and gating for key present/absent, signed in/out and Demo Mode. No test touches the network.
   - Test suite passes with `dart format .` clean and `flutter analyze` 0 issues; web release and Android release APK builds verified locally.
+- 2026-11-16: Phase 8 plan written to `docs/phase-8-plan.md`; slice 8a (profile page) implemented, 8b (assistant speed dial) not started.
+  - Two repositories gain one method and one stream each, matching Firebase semantics: `authStateChanges()` still reports sign-in/out only, `userChanges()` also reports profile edits. The fake and the test double keep them separate so a rename is never mistaken for a new session (an auth-state change rebuilds `routerProvider` and would reset the navigation stack — a profile edit must not do that).
+  - The fake auth repository streams through `Stream.multi` instead of an `async*` + `yield*` generator: a generator keeps its inner subscription alive, so closing the broadcast controller while a listener is attached never completes `close()`. Same change in the test double.
+  - `accountProvider` maps `userChanges()` to a fresh `AccountInfo` per event. A plain `Provider` over `StreamProvider.asData` would have deduplicated a re-emitted identical `User` instance and skipped the rebuild (Riverpod only notifies when `AsyncData ==` changes).
+  - Name rules: whitespace runs collapse to one space before control characters are stripped, so a tab reads as a word separator while `\u0000` is removed without inventing a space. Length is counted in grapheme clusters, so 40 emoji names are accepted and emoji initials are never cut in half.
+  - Photo fallback uses `WebHtmlElementStrategy.fallback` plus `errorBuilder`. Per the Flutter 3.47.9 SDK docs, `fallback` fetches bytes first (CanvasKit can draw them) and only switches to an HTML `<img>` platform view when the fetch fails; when neither works the initial is drawn. Tests assert the initial survives a failed load.
+  - The avatar lives in each shell screen's `AppBar.actions` (the shell does not own an app bar), which covers both `NavigationBar` and `NavigationRail` layouts and keeps it off `/login`, `/profile` and `/assistant` by construction.
+  - Firebase Auth profile edits are not Realtime Database writes, so the AGENTS.md write rules are unchanged.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.
