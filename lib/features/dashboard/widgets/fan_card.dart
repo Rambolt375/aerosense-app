@@ -188,7 +188,7 @@ class _FanCardContent extends StatelessWidget {
               Icon(Icons.toys_outlined, size: 20, color: colorScheme.primary),
               const SizedBox(width: 8),
               Text(
-                'VENTILATION SYSTEM',
+                'Ventilation system',
                 style: theme.textTheme.labelSmall?.copyWith(
                   letterSpacing: 1,
                   fontWeight: FontWeight.w700,
@@ -298,7 +298,7 @@ class _FanStatePill extends StatelessWidget {
         borderRadius: BorderRadius.circular(99),
       ),
       child: Text(
-        active ? 'RUNNING' : 'STANDBY',
+        active ? 'Running' : 'Standby',
         style: Theme.of(context).textTheme.labelSmall
             ?.copyWith(color: color, fontWeight: FontWeight.w700),
       ),

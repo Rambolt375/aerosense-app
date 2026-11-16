@@ -68,7 +68,7 @@ final summaryInputProvider = Provider<SummaryInput?>((ref) {
       state: _deviceSummaryState(deviceStatus),
       lastDataLabel: deviceStatus.formattedTime,
     ),
-    forecast: _forecastSummary(gate, fitState),
+    forecast: forecastSummaryFor(gate, fitState),
     history: history,
     language: ref.watch(summaryLanguageProvider),
     now: now,
@@ -102,7 +102,19 @@ DeviceSummaryState _deviceSummaryState(DeviceStatus status) {
   }
 }
 
-ForecastSummary _forecastSummary(ForecastGate gate, DiurnalFitState fitState) {
+/// Maps the forecast gate to the summary's forecast state.
+///
+/// Device offline is checked first because [ForecastGate.status] folds it into
+/// [ForecastGateStatus.lockedOut]. A paused forecast is not a residual-gate
+/// lockout, and the summary must not claim the predictive layer failed.
+ForecastSummary forecastSummaryFor(
+  ForecastGate gate,
+  DiurnalFitState fitState,
+) {
+  if (gate.isDeviceOffline) {
+    return const ForecastSummary(status: ForecastSummaryStatus.paused);
+  }
+
   switch (gate.status) {
     case ForecastGateStatus.active:
       return ForecastSummary(

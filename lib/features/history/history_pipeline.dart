@@ -422,6 +422,7 @@ YAxisBounds calculateYAxisBounds({
   double? absoluteMin,
   double? absoluteMax,
   required double interval,
+  bool includeThresholds = true,
 }) {
   final valid = spots.where((s) {
     if (s == FlSpot.nullSpot || !s.y.isFinite) return false;
@@ -433,15 +434,22 @@ YAxisBounds calculateYAxisBounds({
   final double dataMax;
 
   if (valid.isEmpty) {
-    dataMin = safeMax;
-    dataMax = dangerMin;
+    if (includeThresholds) {
+      dataMin = safeMax;
+      dataMax = dangerMin;
+    } else {
+      dataMin = absoluteMin ?? 0.0;
+      dataMax = absoluteMax ?? 1.0;
+    }
   } else {
     dataMin = valid.map((s) => s.y).reduce(math.min);
     dataMax = valid.map((s) => s.y).reduce(math.max);
   }
 
-  var minY = math.min(dataMin, safeMax) - padding;
-  var maxY = math.max(dataMax, dangerMin) + padding;
+  var minY =
+      (includeThresholds ? math.min(dataMin, safeMax) : dataMin) - padding;
+  var maxY =
+      (includeThresholds ? math.max(dataMax, dangerMin) : dataMax) + padding;
 
   if (absoluteMin != null) minY = math.max(absoluteMin, minY);
   if (absoluteMax != null) maxY = math.min(absoluteMax, maxY);
@@ -569,6 +577,7 @@ String generateChartSummary({
   required double safeMax,
   required double dangerMin,
   int fractionDigits = 1,
+  bool includeThresholds = true,
 }) {
   final validSpots = spots
       .where((s) => s != FlSpot.nullSpot && !s.y.isNaN)
@@ -588,8 +597,11 @@ String generateChartSummary({
       .reduce(math.max)
       .toStringAsFixed(fractionDigits);
 
+  final thresholdText = includeThresholds
+      ? ' Safe below $safeMax $unit, Danger above $dangerMin $unit.'
+      : '';
+
   return '$metricName history over the last ${range.label}. '
       'Current: $current $unit. '
-      'Minimum: $minVal $unit, Maximum: $maxVal $unit. '
-      'Safe below $safeMax $unit, Danger above $dangerMin $unit.';
+      'Minimum: $minVal $unit, Maximum: $maxVal $unit.$thresholdText';
 }

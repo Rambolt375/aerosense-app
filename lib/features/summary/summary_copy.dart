@@ -15,7 +15,22 @@ class SummaryCopy {
 
   String get statusHeading => 'Status';
 
-  String get readingsHeading => _isId ? 'Saat ini' : 'Right now';
+  /// Heading for the live readings block.
+  ///
+  /// When the device is offline the block is stale, so the heading says
+  /// "Last reading" instead of implying a live snapshot. The time is included
+  /// when the provider knows it.
+  String readingsHeading({bool deviceOffline = false, String? lastDataLabel}) {
+    if (!deviceOffline) {
+      return _isId ? 'Saat ini' : 'Right now';
+    }
+    if (lastDataLabel == null || lastDataLabel.isEmpty) {
+      return _isId ? 'Pembacaan terakhir' : 'Last reading';
+    }
+    return _isId
+        ? 'Pembacaan terakhir ($lastDataLabel)'
+        : 'Last reading ($lastDataLabel)';
+  }
 
   String get forecastHeading => _isId ? 'Perkiraan' : 'Forecast';
 
@@ -43,10 +58,22 @@ class SummaryCopy {
       ? 'Pesan status perangkat: "$message"'
       : 'Device status message: "$message"';
 
-  String fanLine(bool fanOn) => _isId
-      ? 'Kipas: ${fanOn ? 'menyala' : 'mati'}. '
-            'Perangkat yang mengendalikan kipas.'
-      : 'Fan: ${fanOn ? 'on' : 'off'}. The device controls the fan.';
+  /// Fan state line.
+  ///
+  /// [lastReported] is used while the device is offline: the fan state is the
+  /// last value the device published, not a live command, so the copy must not
+  /// imply the app is controlling it now.
+  String fanLine(bool fanOn, {bool lastReported = false}) {
+    if (lastReported) {
+      return _isId
+          ? 'Kipas: terakhir dilaporkan ${fanOn ? 'menyala' : 'mati'}.'
+          : 'Fan: last reported ${fanOn ? 'on' : 'off'}.';
+    }
+    return _isId
+        ? 'Kipas: ${fanOn ? 'menyala' : 'mati'}. '
+              'Perangkat yang mengendalikan kipas.'
+        : 'Fan: ${fanOn ? 'on' : 'off'}. The device controls the fan.';
+  }
 
   List<String> deviceLines(DeviceSummary device) {
     switch (device.state) {
@@ -186,6 +213,10 @@ class SummaryCopy {
       ? 'Perkiraan terkunci. Keputusan keselamatan berasal dari perangkat.'
       : 'Forecast is locked out. '
             'Safety decisions come from the device.';
+
+  String get forecastPaused => _isId
+      ? 'Perkiraan dijeda selama perangkat offline.'
+      : 'Forecast is paused while the device is offline.';
 
   String get forecastLearning => _isId
       ? 'Perkiraan masih dalam pembelajaran.'

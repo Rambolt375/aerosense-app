@@ -206,7 +206,7 @@ void main() {
       expect(text, isNot(contains('null')));
     });
 
-    test('marks an offline device with the last data time', () {
+    test('leads with the offline device line and marks stale readings', () {
       final text = textFor(
         buildInput(
           device: const DeviceSummary(
@@ -216,8 +216,27 @@ void main() {
         ),
       );
 
-      expect(text, contains('Device: offline. Last data at 12:40.'));
+      final lines = text.split('\n');
+      expect(lines[1], 'Device: offline. Last data at 12:40.');
       expect(text, contains('Readings are from that time.'));
+      expect(text, contains('Last reading (12:40)'));
+      expect(text, contains('Fan: last reported off.'));
+      expect(text, isNot(contains('Right now')));
+      expect(text, isNot(contains('The device controls the fan')));
+    });
+
+    test('uses the last-reported fan line when the device is offline', () {
+      final text = textFor(
+        buildInput(
+          state: const SystemState(fanOn: true, statusMessage: 'SAFE'),
+          device: const DeviceSummary(
+            state: DeviceSummaryState.offline,
+            lastDataLabel: '12:40',
+          ),
+        ),
+      );
+
+      expect(text, contains('Fan: last reported on.'));
     });
 
     test('handles an offline device with an unknown last data time', () {
@@ -229,6 +248,9 @@ void main() {
 
       expect(text, contains('Last data time unknown.'));
       expect(text, isNot(contains('Last data at')));
+      expect(text, contains('Last reading'));
+      expect(text, isNot(contains('Last reading (')));
+      expect(text, contains('Fan: last reported off.'));
     });
 
     test('reports an unknown device state without claiming offline', () {
@@ -358,6 +380,18 @@ void main() {
       expect(text, isNot(contains('Predicted')));
     });
 
+    test('renders the paused forecast state while the device is offline', () {
+      final text = textFor(
+        buildInput(
+          forecast: const ForecastSummary(status: ForecastSummaryStatus.paused),
+        ),
+      );
+
+      expect(text, contains('Forecast is paused while the device is offline.'));
+      expect(text, isNot(contains('locked out')));
+      expect(text, isNot(contains('Predicted')));
+    });
+
     test('renders learning forecast state with progress', () {
       final text = textFor(
         buildInput(
@@ -423,7 +457,7 @@ void main() {
       expect(text, isNot(contains('Hati-hati')));
     });
 
-    test('renders Indonesian offline and empty-history copy', () {
+    test('renders Indonesian offline copy and heading', () {
       final text = textFor(
         buildInput(
           language: SummaryLanguage.id,
@@ -435,8 +469,12 @@ void main() {
         ),
       );
 
-      expect(text, contains('Data terakhir 12:40.'));
+      final lines = text.split('\n');
+      expect(lines[1], 'Perangkat: offline. Data terakhir 12:40.');
       expect(text, contains('Pembacaan berasal dari waktu tersebut.'));
+      expect(text, contains('Pembacaan terakhir (12:40)'));
+      expect(text, contains('Kipas: terakhir dilaporkan mati.'));
+      expect(text, isNot(contains('Saat ini')));
       expect(
         text,
         contains('Tidak ada pembacaan bertanda waktu dalam 24 jam terakhir.'),
@@ -445,6 +483,18 @@ void main() {
         text,
         contains('Ambang kelembapan: belum digunakan oleh perangkat.'),
       );
+    });
+
+    test('renders the Indonesian paused forecast state', () {
+      final text = textFor(
+        buildInput(
+          language: SummaryLanguage.id,
+          forecast: const ForecastSummary(status: ForecastSummaryStatus.paused),
+        ),
+      );
+
+      expect(text, contains('Perkiraan dijeda selama perangkat offline.'));
+      expect(text, isNot(contains('terkunci')));
     });
   });
 }

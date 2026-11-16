@@ -16,6 +16,7 @@ enum ForecastSummaryStatus {
   lockedOut,
   learning,
   waitingForTimestamps,
+  paused,
   unavailable,
 }
 

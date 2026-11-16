@@ -196,6 +196,7 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
           absoluteMin: 0.0,
           absoluteMax: 100.0,
           interval: 20.0,
+          includeThresholds: Thresholds.humidityConfirmedByFirmware,
         ),
         airQualityYBounds: calculateYAxisBounds(
           spots: const [],
@@ -271,6 +272,7 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       absoluteMin: 0.0,
       absoluteMax: 100.0,
       interval: 20.0,
+      includeThresholds: Thresholds.humidityConfirmedByFirmware,
     );
     final aqBounds = calculateYAxisBounds(
       spots: aqSpots,
@@ -298,6 +300,7 @@ final historyChartDataProvider = Provider<AsyncValue<HistoryChartData>>((ref) {
       spots: humSpots,
       safeMax: Thresholds.humiditySafeMax,
       dangerMin: Thresholds.humidityDangerMin,
+      includeThresholds: Thresholds.humidityConfirmedByFirmware,
     );
     final aqSummary = generateChartSummary(
       metricName: 'Air quality',

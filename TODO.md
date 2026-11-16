@@ -1,7 +1,7 @@
 # TODO.md: AeroSense App progress
 
 > Living checklist. The agent updates this at the end of every work session: tick items, add notes, and log decisions. Spec lives in `PRD_AeroSense_App.md`; don't duplicate it here.
-> **Current phase:** 7b-1 (✅ COMPLETE — Deterministic offline "Summarize" builder, EN/ID sheet, and dashboard entry; awaiting review. 7b-2 assistant UI and 7b-3 Firebase AI Logic not started.)
+> **Current phase:** 7b-2 (✅ COMPLETE — Ask AeroSense screen against the fake repository: prompt builder, sliding-window limiter, demo repository, chips, disclaimer and privacy line; awaiting review. 7b-3 Firebase AI Logic / App Check not started.)
 
 ## Blockers / open questions (owner: human)
 
@@ -176,7 +176,26 @@
 - [x] `AppConfig.assistantEnabled = false` added for later slices.
 - [x] Tests: builder (EN/ID, Danger, bare vs descriptive, estimated tier, nulls, offline, empty/loading/unavailable/sparse history, humidity confirmed flag, preset-driven thresholds, forecast states, no ppm, no advice), history stats, sheet (language switch, clipboard, disclaimer, no-data, 360 px / 1.3x), and dashboard card (Summarize opens sheet, Ask hidden).
 - [x] `dart format .`, `flutter analyze` clean, `flutter test` all passing (427 tests).
-- [ ] Phase 7b-2: assistant route, prompt builder, rate limiter, demo repository, chips, disclaimer, privacy line.
+- [x] Review fixes (test-first):
+  - [x] Offline summary leads with `Device: offline. Last data at HH:mm.`; the live heading becomes `Last reading (HH:mm)` / `Pembacaan terakhir (HH:mm)`; fan line becomes `Fan: last reported off/on.` / `Kipas: terakhir dilaporkan mati/menyala.` EN and ID tests.
+  - [x] `ForecastSummaryStatus.paused` added; `forecastSummaryFor` checks `gate.isDeviceOffline` first and prints `Forecast is paused while the device is offline.` / `Perkiraan dijeda selama perangkat offline.` Real residual lockout and learning remain distinct. Tests cover active, lockedOut, learning (temperature then AQ progress), waitingForTimestamps, and paused.
+  - [x] `MetricTile.showTierBadge` and `MetricGrid` hide the humidity badge while `Thresholds.humidityConfirmedByFirmware` is false; `MetricChartCard.showThresholds` hides humidity bands, legend, and threshold labels (readings/line only) and `calculateYAxisBounds(includeThresholds: false)` fits the readings. `generateChartSummary(includeThresholds: false)` also stops announcing unconfirmed limits. Widget tests cover both flag states.
+  - [x] Air-quality tile uses `fractionDigits: 0` (`1128`, never `1128.0`).
+  - [x] Dashboard card title is `Room summary` while `AppConfig.assistantEnabled` is false.
+  - [x] `LIVE ENVIRONMENT`, `VENTILATION SYSTEM`, and `STANDBY`/`RUNNING` changed to `Live environment`, `Ventilation system`, and `Standby`/`Running`; no code comment claimed the caps were deliberate.
+- [x] Post-review verification: `dart format .` clean, `flutter analyze` 0 issues, `flutter test` all passing (443 tests).
+- [x] Phase 7b-2: Ask AeroSense screen against the fake repository (no Firebase AI yet).
+  - [x] `AssistantRepository` interface (`data/repositories/assistant_repository.dart`) with no Firebase types: `ask({systemInstruction, history, question})` returns the answer text. Error mapping stays in 7b-3.
+  - [x] `FakeAssistantRepository`: scripted answers derived from the current summary, quoting the firmware tier word, language from `SummaryInput.language`, `StateError` when there is no summary input, 300 ms simulated latency (`AppConfig.assistantFakeLatency`).
+  - [x] `assistantRepositoryProvider` returns the fake in Demo Mode and `null` otherwise, so the screen shows an honest unavailable state until 7b-3 wires the live model.
+  - [x] `buildAssistantRequest` / `buildSystemInstruction` (`features/assistant/assistant_prompt.dart`): JSON allow-list (`unit_note`, `firmware_tier`, `status_message`, `fan`, `device`, `app`, `live_readings`, `thresholds`, `last_24h`, `forecast`); device `statusMessage` sits inside `<device_data>` as data only; the visitor question is structurally passed separately and never enters the system instruction (tested).
+  - [x] Privacy tests assert the JSON contains no uid, email, display name, photo URL, auth token, or device UID.
+  - [x] `SlidingWindowRateLimiter` (`features/assistant/rate_limiter.dart`): 6 questions / 10 min per uid plus 1.5 s minimum spacing, injected clock, `tooFast` vs `windowExceeded` outcomes and `retryAfter`. Provider keeps one instance (not auto-dispose) so the window survives screen reopen.
+  - [x] Chat state (`AssistantChatNotifier`): idle, thinking, answered, rate-limited, error; last 4 messages kept and sent as history; nothing persisted; auto-dispose provider.
+  - [x] `AssistantScreen` at top-level route `/assistant` (no bottom navigation): EN + ID suggested chips following the same summary language selector, pinned disclaimer ("AI-generated, may be wrong. The device alert is authoritative.") and privacy line ("Questions are sent to Google's Gemini service. Don't type personal information."), 300-character input cap, inline deterministic summary fallback in the error state, retry button.
+  - [x] Dashboard "Ask AeroSense" entry appears only when `AppConfig.assistantEnabled` is true, forced true in Demo Mode; `AppConfig.assistantEnabled` itself stays `false`.
+  - [x] Tests: prompt builder and JSON privacy, limiter (spacing, window, retryAfter, bucket isolation), fake repository answers/latency/error, screen states and responsive layout at 360/768/1280 px with 1.3x text, demo gating and `/assistant` navigation, top-level route without bottom nav.
+  - [x] `dart format .` clean, `flutter analyze` 0 issues, `flutter test` all passing (498 tests).
 - [ ] Phase 7b-3: `firebase_ai` + `firebase_app_check`, live repository, App Check activation, end-to-end check.
 
 ## Decisions log
@@ -310,6 +329,24 @@
   - Added `ThresholdPreset.humidityConfirmedByFirmware` (default false) and `Thresholds.humidityConfirmedByFirmware`; `fromJson` accepts `humidityConfirmedByFirmware` or `humidityConfirmed` only as a literal `true`.
   - The sheet computes the summary lazily on open and reuses already-loaded history; no new dependencies, no Firebase AI calls, no network required.
   - Test suite now 427 tests, `flutter analyze` clean, `dart format` clean.
+- 2026-11-15: Phase 7b-1 review fixes applied test-first:
+  - Offline summaries now lead with the device line, switch the live heading to `Last reading (HH:mm)` / `Pembacaan terakhir (HH:mm)`, and use `Fan: last reported ...` / `Kipas: terakhir dilaporkan ...` so stale data is never presented as live or app-controlled.
+  - Added `ForecastSummaryStatus.paused`; device offline is checked before `ForecastGate.status`, because the gate folds offline into `lockedOut`. Lockout copy is now reserved for a real residual-gate lockout.
+  - Humidity is treated as unconfirmed end-to-end while `Thresholds.humidityConfirmedByFirmware` is false: no dashboard tier badge, no history bands/legend/threshold labels, Y-axis fits the readings, and the screen-reader summary omits the limits. Flipping the flag restores all of it.
+  - Air-quality tile values are integers; dashboard card reads `Room summary` until `AppConfig.assistantEnabled` is true.
+  - Uppercase dashboard labels were not deliberate (no supporting code comment); changed to sentence case per DESIGN.md §3, leaving `DEMO MODE` as the only all-caps text.
+  - Test suite now 443 tests, `flutter analyze` clean, `dart format` clean.
+- 2026-11-15: Phase 7b-2 implemented (fake repository only, no Firebase AI).
+  - `AssistantRepository` takes the system instruction, prior history and question separately and returns a plain answer string; error typing is deferred to 7b-3 so the UI contract does not change twice.
+  - `assistantRepositoryProvider` is `Provider<AssistantRepository?>`: fake under Demo Mode, `null` otherwise. A null repository shows "unavailable" rather than pretending the assistant works before App Check exists.
+  - The question never enters the system instruction: `AssistantRequest` carries it beside the instruction, and a test asserts the question string is absent from the instruction.
+  - Prompt JSON is an allow-list copied key by key (no `toJson` passthrough), so a future model field cannot leak a uid, email, name, photo, token or device UID; tests assert each of those is absent.
+  - Limiter constants live in `AppConfig` (6 / 10 min / 1.5 s) and the limiter is kept alive across screen visits so the window cannot be reset by closing the screen.
+  - Chat keeps only the last 4 messages (`AppConfig.assistantMaxMessages`) and stores nothing; the provider is auto-dispose.
+  - `/assistant` is a top-level route: no bottom navigation on the screen. The dashboard entry is Demo-gated by `AppConfig.assistantEnabled || demoMode`, with the constant itself still `false`.
+  - The 300-character cap is enforced in the composer (`AppConfig.assistantMaxInputChars`).
+  - Screen layout: language `SegmentedButton` and chips scroll with the transcript; the composer is a single text field plus send button so the 360 px / 1.3x layout has no overflow; disclaimer and privacy line stay pinned.
+  - Test suite now 498 tests, `flutter analyze` clean, `dart format` clean.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

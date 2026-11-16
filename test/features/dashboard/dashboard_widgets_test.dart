@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/metric_tier.dart';
 import 'package:aerosense_app/data/models/tier.dart';
+import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_tile.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
 
@@ -68,13 +70,15 @@ void main() {
               unit: '',
               metricTier: MetricTier.forAirQuality(1128.0),
               caption: 'Relative index, uncalibrated',
+              fractionDigits: 0,
             ),
           ),
         ),
       );
 
       expect(find.text('Air quality'), findsOneWidget);
-      expect(find.text('1128.0'), findsOneWidget);
+      expect(find.text('1128'), findsOneWidget);
+      expect(find.text('1128.0'), findsNothing);
       expect(find.text('Relative index, uncalibrated'), findsOneWidget);
       // Verify "ppm" does NOT appear
       expect(find.textContaining('ppm', findRichText: true), findsNothing);
@@ -115,6 +119,85 @@ void main() {
       );
 
       expect(find.text('Caution'), findsOneWidget);
+    });
+
+    testWidgets('hides the tier badge when showTierBadge is false', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: MetricTile(
+              icon: Icons.water_drop_outlined,
+              label: 'Humidity',
+              value: 65.0,
+              unit: '%',
+              metricTier: MetricTier.forHumidity(65.0),
+              showTierBadge: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Caution'), findsNothing);
+      expect(find.text('65.0'), findsOneWidget);
+    });
+  });
+
+  group('MetricGrid humidity tier badge', () {
+    tearDown(() => Thresholds.current = ThresholdPreset.firmware);
+
+    Future<void> pumpGrid(WidgetTester tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: MetricGrid(
+                temperature: 27.0,
+                humidity: 65.0,
+                airQuality: 820.0,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets('hides the humidity badge while the firmware is unconfirmed', (
+      tester,
+    ) async {
+      Thresholds.current = ThresholdPreset.firmware;
+
+      await pumpGrid(tester);
+
+      // Temperature and air quality stay Safe; the humidity Caution badge is
+      // hidden because the firmware owner has not confirmed humidity limits.
+      expect(find.text('Caution'), findsNothing);
+      expect(find.text('Safe'), findsNWidgets(2));
+      // Air quality is a raw integer ADC index.
+      expect(find.text('820'), findsOneWidget);
+      expect(find.text('820.0'), findsNothing);
+    });
+
+    testWidgets('shows the humidity badge once the flag is confirmed', (
+      tester,
+    ) async {
+      Thresholds.current = const ThresholdPreset(
+        name: 'confirmed',
+        tempCautionMin: 33.5,
+        tempDangerMin: 36.0,
+        airQualityCautionMin: 1400,
+        airQualityDangerMin: 2000,
+        airQualityRecovery: 1250,
+        humidityCautionMin: 60.0,
+        humidityDangerMin: 75.0,
+        humidityConfirmedByFirmware: true,
+      );
+
+      await pumpGrid(tester);
+
+      expect(find.text('Caution'), findsOneWidget);
+      expect(find.text('Safe'), findsNWidgets(2));
     });
   });
 

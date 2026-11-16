@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
@@ -10,11 +11,10 @@ import 'package:aerosense_app/features/dashboard/widgets/ask_about_room_card.dar
 import 'package:aerosense_app/features/dashboard/widgets/fan_card.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_grid.dart';
 import 'package:aerosense_app/features/dashboard/widgets/tier_banner.dart';
-import 'package:aerosense_app/shared/connection_chip.dart';
 
 /// Live dashboard screen with metric tiles, tier banner, and fan control.
 ///
-/// Subscribes to systemStateProvider, connectedProvider, and deviceStatusProvider.
+/// Subscribes to systemStateProvider and deviceStatusProvider.
 /// Shows loading skeletons during initial load and an error card with Retry on stream failure.
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
@@ -22,39 +22,10 @@ class DashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final systemState = ref.watch(systemStateProvider);
-    final connected = ref.watch(connectedProvider);
     final deviceStatus = ref.watch(deviceStatusProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AeroSense'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(34),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                Text(
-                  'LIVE ENVIRONMENT',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                connected.when(
-                  data: (c) => ConnectionChip(isConnected: c),
-                  loading: () => const ConnectionChip(isConnected: false),
-                  error: (_, _) => const ConnectionChip(isConnected: false),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      appBar: AppBar(title: const Text('AeroSense')),
       body: systemState.when(
         skipLoadingOnReload: true,
         data: (state) =>
@@ -86,8 +57,6 @@ class _DashboardContent extends StatelessWidget {
     Widget content = ListView(
       padding: EdgeInsets.all(padding),
       children: [
-        _NodeConnectionCard(isDeviceOffline: isDeviceOffline),
-        const SizedBox(height: 24),
         Text('Telemetry Readout', style: theme.textTheme.titleLarge),
         const SizedBox(height: 2),
         Text(
@@ -97,20 +66,24 @@ class _DashboardContent extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        // Live tier banner or Device Offline notice
-        if (isDeviceOffline)
-          _buildOfflineBanner(context, theme)
-        else
-          TierBanner(tier: state.tier, statusMessage: state.statusMessage),
+
+        // Node card carries the offline state and last-data time, so no
+        // separate offline banner is needed. Stale readings below are dimmed.
+        _NodeConnectionCard(deviceStatus: deviceStatus),
         const SizedBox(height: 16),
 
-        // Metric tiles (dimmed when device is offline)
         Opacity(
           opacity: isDeviceOffline ? 0.45 : 1.0,
-          child: MetricGrid(
-            temperature: state.temperature,
-            humidity: state.humidity,
-            airQuality: state.airQuality,
+          child: Column(
+            children: [
+              TierBanner(tier: state.tier, statusMessage: state.statusMessage),
+              const SizedBox(height: 16),
+              MetricGrid(
+                temperature: state.temperature,
+                humidity: state.humidity,
+                airQuality: state.airQuality,
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),
@@ -146,63 +119,27 @@ class _DashboardContent extends StatelessWidget {
 
     return content;
   }
-
-  Widget _buildOfflineBanner(BuildContext context, ThemeData theme) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
-        border: Border.all(color: theme.colorScheme.outline, width: 1),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.cloud_off_outlined,
-            size: 24,
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Device offline',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.colorScheme.onSurface,
-                    fontVariations: [const FontVariation('wght', 600)],
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  deviceStatus.message,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _NodeConnectionCard extends StatelessWidget {
-  const _NodeConnectionCard({required this.isDeviceOffline});
+  const _NodeConnectionCard({required this.deviceStatus});
 
-  final bool isDeviceOffline;
+  final DeviceStatus deviceStatus;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final online = !isDeviceOffline;
+    final online = deviceStatus.isOnline;
+    final unknown = deviceStatus.isUnknown;
     final statusColor = online
         ? context.tierColors.safe
         : theme.colorScheme.onSurfaceVariant;
+
+    final statusLabel = online
+        ? 'Connected'
+        : unknown
+        ? 'Unknown'
+        : 'Offline';
 
     return Card(
       child: Padding(
@@ -236,27 +173,20 @@ class _NodeConnectionCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusPill(
-                  label: online ? 'Connected' : 'Offline',
-                  color: statusColor,
-                ),
+                _StatusPill(label: statusLabel, color: statusColor),
               ],
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Row(
               children: [
                 Icon(
-                  Icons.sync,
+                  Icons.schedule,
                   size: 15,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),
-                Text('Live Firebase stream', style: theme.textTheme.labelSmall),
-                Icon(Icons.wifi, size: 15, color: statusColor),
+                const SizedBox(width: 8),
                 Text(
-                  online ? 'Online' : 'Unavailable',
+                  AppStrings.lastDataAt(deviceStatus.formattedTime),
                   style: theme.textTheme.labelSmall,
                 ),
               ],

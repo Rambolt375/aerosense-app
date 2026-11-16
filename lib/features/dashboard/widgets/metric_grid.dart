@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/metric_tier.dart';
 import 'package:aerosense_app/features/dashboard/widgets/metric_tile.dart';
 
@@ -46,6 +47,9 @@ class MetricGrid extends StatelessWidget {
           value: humidity,
           unit: '%',
           metricTier: MetricTier.forHumidity(humidity),
+          // The firmware owner has not confirmed humidity limits, so the badge
+          // would claim a tier the device does not actually use.
+          showTierBadge: Thresholds.humidityConfirmedByFirmware,
         ),
         MetricTile(
           icon: Icons.air_outlined,
@@ -54,6 +58,8 @@ class MetricGrid extends StatelessWidget {
           unit: '',
           metricTier: MetricTier.forAirQuality(airQuality),
           caption: 'Relative index, uncalibrated',
+          // Raw 12-bit ADC index: never show a fractional value.
+          fractionDigits: 0,
         ),
       ],
     );

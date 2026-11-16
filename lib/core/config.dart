@@ -15,6 +15,33 @@ class AppConfig {
   /// deterministic "Summarize" action is independent and always available.
   static const bool assistantEnabled = false;
 
+  // --- Ask AeroSense assistant (Phase 7b) ---
+
+  /// Maximum input length for one visitor question.
+  static const int assistantMaxInputChars = 300;
+
+  /// Client-side question budget per signed-in uid inside [assistantRateWindow].
+  ///
+  /// Advisory only: App Check plus the project quota are the real ceiling.
+  static const int assistantMaxQuestionsPerWindow = 6;
+
+  /// Sliding window for the per-uid question budget.
+  static const Duration assistantRateWindow = Duration(minutes: 10);
+
+  /// Minimum spacing between two accepted questions from the same uid.
+  static const Duration assistantMinQuestionSpacing = Duration(
+    milliseconds: 1500,
+  );
+
+  /// One request is abandoned after this long; the summary is shown instead.
+  static const Duration assistantTimeout = Duration(seconds: 20);
+
+  /// Recent conversation messages kept in memory and sent as chat history.
+  static const int assistantMaxMessages = 4;
+
+  /// Artificial latency of the scripted Demo Mode assistant.
+  static const Duration assistantFakeLatency = Duration(milliseconds: 300);
+
   /// Regional Realtime Database URL for asia-southeast1.
   static const String databaseUrl =
       'https://aerosense-502de-default-rtdb.asia-southeast1.firebasedatabase.app';

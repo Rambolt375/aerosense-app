@@ -49,7 +49,14 @@ SummaryResult buildSummary(SummaryInput input) {
 SummarySection _statusSection(SummaryInput input, SummaryCopy copy) {
   final state = input.state;
   final firmwareTier = Tier.fromStatusMessage(state.statusMessage);
+  final isOffline = input.device.state == DeviceSummaryState.offline;
   final lines = <String>[];
+
+  // Offline freshness is the most important fact: lead with it so the stale
+  // readings below are never mistaken for a live snapshot.
+  if (isOffline) {
+    lines.addAll(copy.deviceLines(input.device));
+  }
 
   if (firmwareTier != null) {
     lines.add(copy.firmwareTier(tierWord(firmwareTier)));
@@ -62,8 +69,11 @@ SummarySection _statusSection(SummaryInput input, SummaryCopy copy) {
     lines.add(copy.statusMessage(message));
   }
 
-  lines.add(copy.fanLine(state.fanOn));
-  lines.addAll(copy.deviceLines(input.device));
+  lines.add(copy.fanLine(state.fanOn, lastReported: isOffline));
+
+  if (!isOffline) {
+    lines.addAll(copy.deviceLines(input.device));
+  }
 
   if (!input.appConnected) {
     lines.add(copy.appOffline);
@@ -124,7 +134,13 @@ SummarySection _readingsSection(SummaryInput input, SummaryCopy copy) {
     );
   }
 
-  return SummarySection(heading: copy.readingsHeading, lines: lines);
+  return SummarySection(
+    heading: copy.readingsHeading(
+      deviceOffline: input.device.state == DeviceSummaryState.offline,
+      lastDataLabel: input.device.lastDataLabel,
+    ),
+    lines: lines,
+  );
 }
 
 SummarySection _historySection(SummaryInput input, SummaryCopy copy) {
@@ -207,6 +223,9 @@ SummarySection _forecastSection(SummaryInput input, SummaryCopy copy) {
       break;
     case ForecastSummaryStatus.waitingForTimestamps:
       lines.add(copy.forecastWaiting);
+      break;
+    case ForecastSummaryStatus.paused:
+      lines.add(copy.forecastPaused);
       break;
     case ForecastSummaryStatus.unavailable:
       lines.add(copy.forecastUnavailable);

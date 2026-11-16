@@ -28,6 +28,7 @@ class MetricChartCard extends StatelessWidget {
     required this.semanticsSummary,
     this.fractionDigits = 1,
     this.forecastSpots,
+    this.showThresholds = true,
   });
 
   /// Metric display title (e.g. "Temperature").
@@ -56,6 +57,10 @@ class MetricChartCard extends StatelessWidget {
 
   /// Optional Phase 5 forecast series hook (dotted line).
   final List<FlSpot>? forecastSpots;
+
+  /// Whether to draw the Safe / Caution / Danger bands, legend, and threshold
+  /// labels. False while humidity limits are unconfirmed by the firmware.
+  final bool showThresholds;
 
   @override
   Widget build(BuildContext context) {
@@ -106,7 +111,7 @@ class MetricChartCard extends StatelessWidget {
                     ],
                   ),
                   // Legend row (dot + label for Safe, Medium, Danger)
-                  _buildLegendRow(context, tierColors),
+                  if (showThresholds) _buildLegendRow(context, tierColors),
                 ],
               ),
               if (caption != null) ...[
@@ -207,7 +212,9 @@ class MetricChartCard extends StatelessWidget {
     }
     final visibleYTicks = filterVisibleYAxisTicks(
       candidateTicks: candidateYTicks,
-      thresholds: [yBounds.safeMax, yBounds.dangerMin],
+      thresholds: showThresholds
+          ? [yBounds.safeMax, yBounds.dangerMin]
+          : const [],
       minY: yBounds.minY,
       maxY: yBounds.maxY,
       chartHeightPx: 154.0,
@@ -267,99 +274,103 @@ class MetricChartCard extends StatelessWidget {
       ),
       // Safe, Medium, Danger horizontal threshold bands at 12% opacity
       rangeAnnotations: RangeAnnotations(
-        horizontalRangeAnnotations: [
-          // Safe band: [minY, safeMax]
-          HorizontalRangeAnnotation(
-            y1: yBounds.minY,
-            y2: yBounds.safeMax,
-            color: tierColors.safe.withValues(alpha: 0.12),
-          ),
-          // Medium band: [safeMax, dangerMin]
-          HorizontalRangeAnnotation(
-            y1: yBounds.safeMax,
-            y2: yBounds.dangerMin,
-            color: tierColors.medium.withValues(alpha: 0.12),
-          ),
-          // Danger band: [dangerMin, maxY]
-          HorizontalRangeAnnotation(
-            y1: yBounds.dangerMin,
-            y2: yBounds.maxY,
-            color: tierColors.danger.withValues(alpha: 0.12),
-          ),
-        ],
+        horizontalRangeAnnotations: showThresholds
+            ? [
+                // Safe band: [minY, safeMax]
+                HorizontalRangeAnnotation(
+                  y1: yBounds.minY,
+                  y2: yBounds.safeMax,
+                  color: tierColors.safe.withValues(alpha: 0.12),
+                ),
+                // Medium band: [safeMax, dangerMin]
+                HorizontalRangeAnnotation(
+                  y1: yBounds.safeMax,
+                  y2: yBounds.dangerMin,
+                  color: tierColors.medium.withValues(alpha: 0.12),
+                ),
+                // Danger band: [dangerMin, maxY]
+                HorizontalRangeAnnotation(
+                  y1: yBounds.dangerMin,
+                  y2: yBounds.maxY,
+                  color: tierColors.danger.withValues(alpha: 0.12),
+                ),
+              ]
+            : const [],
       ),
       // Dotted threshold marker lines on the Y-axis (ensures bands are not color-only)
       extraLinesData: ExtraLinesData(
-        horizontalLines: [
-          HorizontalLine(
-            y: yBounds.safeMax,
-            color: tierColors.safe.withValues(alpha: 0.5),
-            strokeWidth: 1,
-            dashArray: [4, 4],
-            label: HorizontalLineLabel(
-              show: true,
-              alignment:
-                  thresholdLayout.safeMaxConfig.verticalPosition ==
-                      ThresholdLabelVerticalPosition.aboveLine
-                  ? Alignment.topRight
-                  : Alignment.bottomRight,
-              padding: EdgeInsets.only(
-                right: thresholdLayout.safeMaxConfig.horizontalOffsetPx,
-                bottom:
-                    thresholdLayout.safeMaxConfig.verticalPosition ==
-                        ThresholdLabelVerticalPosition.aboveLine
-                    ? 2
-                    : 0,
-                top:
-                    thresholdLayout.safeMaxConfig.verticalPosition ==
-                        ThresholdLabelVerticalPosition.belowLine
-                    ? 2
-                    : 0,
-              ),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: tierColors.safe,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-              labelResolver: (_) =>
-                  '${yBounds.safeMax.toStringAsFixed(fractionDigits)} $unit',
-            ),
-          ),
-          HorizontalLine(
-            y: yBounds.dangerMin,
-            color: tierColors.danger.withValues(alpha: 0.5),
-            strokeWidth: 1,
-            dashArray: [4, 4],
-            label: HorizontalLineLabel(
-              show: true,
-              alignment:
-                  thresholdLayout.dangerMinConfig.verticalPosition ==
-                      ThresholdLabelVerticalPosition.aboveLine
-                  ? Alignment.topRight
-                  : Alignment.bottomRight,
-              padding: EdgeInsets.only(
-                right: thresholdLayout.dangerMinConfig.horizontalOffsetPx,
-                bottom:
-                    thresholdLayout.dangerMinConfig.verticalPosition ==
-                        ThresholdLabelVerticalPosition.aboveLine
-                    ? 2
-                    : 0,
-                top:
-                    thresholdLayout.dangerMinConfig.verticalPosition ==
-                        ThresholdLabelVerticalPosition.belowLine
-                    ? 2
-                    : 0,
-              ),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: tierColors.danger,
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-              ),
-              labelResolver: (_) =>
-                  '${yBounds.dangerMin.toStringAsFixed(fractionDigits)} $unit',
-            ),
-          ),
-        ],
+        horizontalLines: showThresholds
+            ? [
+                HorizontalLine(
+                  y: yBounds.safeMax,
+                  color: tierColors.safe.withValues(alpha: 0.5),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                  label: HorizontalLineLabel(
+                    show: true,
+                    alignment:
+                        thresholdLayout.safeMaxConfig.verticalPosition ==
+                            ThresholdLabelVerticalPosition.aboveLine
+                        ? Alignment.topRight
+                        : Alignment.bottomRight,
+                    padding: EdgeInsets.only(
+                      right: thresholdLayout.safeMaxConfig.horizontalOffsetPx,
+                      bottom:
+                          thresholdLayout.safeMaxConfig.verticalPosition ==
+                              ThresholdLabelVerticalPosition.aboveLine
+                          ? 2
+                          : 0,
+                      top:
+                          thresholdLayout.safeMaxConfig.verticalPosition ==
+                              ThresholdLabelVerticalPosition.belowLine
+                          ? 2
+                          : 0,
+                    ),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: tierColors.safe,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    labelResolver: (_) =>
+                        '${yBounds.safeMax.toStringAsFixed(fractionDigits)} $unit',
+                  ),
+                ),
+                HorizontalLine(
+                  y: yBounds.dangerMin,
+                  color: tierColors.danger.withValues(alpha: 0.5),
+                  strokeWidth: 1,
+                  dashArray: [4, 4],
+                  label: HorizontalLineLabel(
+                    show: true,
+                    alignment:
+                        thresholdLayout.dangerMinConfig.verticalPosition ==
+                            ThresholdLabelVerticalPosition.aboveLine
+                        ? Alignment.topRight
+                        : Alignment.bottomRight,
+                    padding: EdgeInsets.only(
+                      right: thresholdLayout.dangerMinConfig.horizontalOffsetPx,
+                      bottom:
+                          thresholdLayout.dangerMinConfig.verticalPosition ==
+                              ThresholdLabelVerticalPosition.aboveLine
+                          ? 2
+                          : 0,
+                      top:
+                          thresholdLayout.dangerMinConfig.verticalPosition ==
+                              ThresholdLabelVerticalPosition.belowLine
+                          ? 2
+                          : 0,
+                    ),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: tierColors.danger,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    labelResolver: (_) =>
+                        '${yBounds.dangerMin.toStringAsFixed(fractionDigits)} $unit',
+                  ),
+                ),
+              ]
+            : const [],
       ),
       // Axis titles
       titlesData: FlTitlesData(

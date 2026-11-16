@@ -17,6 +17,8 @@ class MetricTile extends StatelessWidget {
     required this.unit,
     required this.metricTier,
     this.caption,
+    this.fractionDigits = 1,
+    this.showTierBadge = true,
   });
 
   final IconData icon;
@@ -26,6 +28,14 @@ class MetricTile extends StatelessWidget {
   final Tier metricTier;
   final String? caption;
 
+  /// Decimal places for the value. Air quality uses 0 because it is a raw
+  /// integer ADC index.
+  final int fractionDigits;
+
+  /// Whether to show the per-metric tier badge. Humidity hides it until the
+  /// firmware owner confirms humidity limits.
+  final bool showTierBadge;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -33,7 +43,9 @@ class MetricTile extends StatelessWidget {
     final tierColors = context.tierColors;
 
     final tierColor = tierColors.forTier(metricTier);
-    final valueText = value != null ? value!.toStringAsFixed(1) : '--';
+    final valueText = value != null
+        ? value!.toStringAsFixed(fractionDigits)
+        : '--';
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -60,8 +72,10 @@ class MetricTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _TierBadge(tier: metricTier, tierColor: tierColor),
+              if (showTierBadge) ...[
+                const SizedBox(width: 8),
+                _TierBadge(tier: metricTier, tierColor: tierColor),
+              ],
             ],
           ),
           const SizedBox(height: 12),

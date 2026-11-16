@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:aerosense_app/core/theme.dart';
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/features/forecast/widgets/forecast_status_card.dart';
 import 'package:aerosense_app/features/history/history_notifier.dart';
 import 'package:aerosense_app/features/history/history_pipeline.dart';
@@ -169,6 +170,9 @@ class HistoryScreen extends ConsumerWidget {
             yBounds: data.humidityYBounds,
             semanticsSummary: data.humiditySummary,
             fractionDigits: 1,
+            // Humidity limits are not confirmed firmware thresholds yet, so
+            // the chart shows readings and the line only.
+            showThresholds: Thresholds.humidityConfirmedByFirmware,
           ),
           const SizedBox(height: 16),
           MetricChartCard(

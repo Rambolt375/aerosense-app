@@ -53,6 +53,8 @@ class AppStrings {
   static String deviceOfflineAt(String? time) => time != null && time.isNotEmpty
       ? 'Device offline. Last data at $time'
       : 'Device offline.';
+  static String lastDataAt(String? time) =>
+      'Last data at ${time != null && time.isNotEmpty ? time : '--'}';
   static const deviceReconnected = 'Device reconnected';
 
   // Snackbar Errors & Feedback
@@ -78,6 +80,7 @@ class AppStrings {
       'Awaiting sufficient history data to fit 24-hour diurnal sinusoidal wave.';
 
   // Summary & Assistant Entry (Phase 7b)
+  static const roomSummaryTitle = 'Room summary';
   static const askAboutRoomTitle = 'Ask about this room';
   static const askAboutRoomBody =
       'Get a plain-language description of what the device reports right now.';
@@ -94,6 +97,39 @@ class AppStrings {
   static const summaryNoDataBody =
       'Wait for the first telemetry from the device, then try again.';
   static const summaryClose = 'Close';
+
+  // Ask AeroSense (Phase 7b-2)
+  static const assistantIntro =
+      'Ask about the readings in this room. Answers are based only on what the '
+      'device reports.';
+  static const assistantDisclaimer =
+      'AI-generated, may be wrong. The device alert is authoritative.';
+  static const assistantPrivacy =
+      "Questions are sent to Google's Gemini service. "
+      "Don't type personal information.";
+  static const assistantInputHint = 'Ask about this room';
+  static const assistantSend = 'Send';
+  static const assistantThinking = 'Thinking...';
+  static const assistantErrorTitle = "The assistant couldn't answer";
+  static const assistantErrorBody = 'Here is the room summary instead.';
+  static const assistantUnavailableBody =
+      "The assistant isn't available in this build. "
+      'Here is the room summary instead.';
+  static const assistantRateLimitedTitle = 'Question limit reached';
+  static String assistantRateLimitedBody(String wait) =>
+      'You can ask again in $wait. Here is the room summary.';
+  static const assistantTryAgain = 'Try again';
+  static const assistantSummaryFallback = 'Room summary';
+  static const assistantChipsEnglish = <String>[
+    'Is the room OK right now?',
+    'Why is it in Caution?',
+    'When is it warmest?',
+  ];
+  static const assistantChipsIndonesian = <String>[
+    'Apakah ruangan aman sekarang?',
+    'Mengapa berstatus Caution?',
+    'Kapan paling hangat?',
+  ];
 
   // Accessibility Announcements
   static const semanticsVentilationStarted = 'Ventilation started';

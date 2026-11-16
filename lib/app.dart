@@ -10,6 +10,7 @@ import 'package:aerosense_app/features/notices/in_app_notice_notifier.dart';
 import 'package:aerosense_app/features/notices/widgets/in_app_notice_banner.dart';
 import 'package:aerosense_app/features/auth/debug_screen.dart';
 import 'package:aerosense_app/features/auth/login_screen.dart';
+import 'package:aerosense_app/features/assistant/assistant_screen.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
@@ -71,6 +72,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      // Full-screen assistant, outside the shell so there is no fifth nav tab.
+      GoRoute(
+        path: '/assistant',
+        name: 'assistant',
+        builder: (context, state) => const AssistantScreen(),
       ),
       // Debug screen — only registered in debug builds.
       if (kDebugMode)

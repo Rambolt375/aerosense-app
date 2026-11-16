@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerosense_app/core/theme.dart';
+import 'package:aerosense_app/core/thresholds.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
 import 'package:aerosense_app/data/repositories/fake_history_repository.dart';
 import 'package:aerosense_app/data/repositories/history_repository.dart';
@@ -97,12 +98,49 @@ void main() {
         // LineChart widgets rendered
         expect(find.byType(LineChart), findsNWidgets(3));
 
-        // Legend row on all 3 cards: "Safe", "Caution", "Danger"
-        expect(find.text('Safe'), findsNWidgets(3));
-        expect(find.text('Caution'), findsNWidgets(3));
-        expect(find.text('Danger'), findsNWidgets(3));
+        // Legend row: temperature and air quality show thresholds. Humidity
+        // stays unlabelled until the firmware owner confirms its limits.
+        expect(find.text('Safe'), findsNWidgets(2));
+        expect(find.text('Caution'), findsNWidgets(2));
+        expect(find.text('Danger'), findsNWidgets(2));
       },
     );
+
+    testWidgets('restores humidity threshold visuals when the flag is on', (
+      tester,
+    ) async {
+      Thresholds.current = const ThresholdPreset(
+        name: 'confirmed',
+        tempCautionMin: 33.5,
+        tempDangerMin: 36.0,
+        airQualityCautionMin: 1400,
+        airQualityDangerMin: 2000,
+        airQualityRecovery: 1250,
+        humidityCautionMin: 60.0,
+        humidityDangerMin: 75.0,
+        humidityConfirmedByFirmware: true,
+      );
+      addTearDown(() => Thresholds.current = ThresholdPreset.firmware);
+
+      final dataset = FakeHistoryRepository.generateHistory(
+        anchor: now,
+        count: 288,
+      );
+      final repo = _MockHistoryRepository(initialRecords: dataset);
+      addTearDown(repo.dispose);
+
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(createTestSubject(repository: repo));
+      await tester.pumpAndSettle();
+
+      // All three cards show the Safe / Caution / Danger legend again.
+      expect(find.text('Safe'), findsNWidgets(3));
+      expect(find.text('Caution'), findsNWidgets(3));
+      expect(find.text('Danger'), findsNWidgets(3));
+    });
 
     testWidgets('switching range via RangeSelector updates active range', (
       tester,

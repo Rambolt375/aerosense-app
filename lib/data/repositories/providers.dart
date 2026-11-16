@@ -82,6 +82,13 @@ final authStateProvider = StreamProvider<User?>((ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
 });
 
+/// Signed-in account id, exposed as a plain string so UI/providers do not need
+/// Firebase types. Used only for the Ask AeroSense client rate-limit bucket.
+final currentUserUidProvider = Provider<String?>((ref) {
+  final user = ref.watch(authStateProvider).asData?.value;
+  return user?.uid;
+});
+
 /// Whether the current authenticated session is a team member account.
 ///
 /// NOTE on Security Authority:

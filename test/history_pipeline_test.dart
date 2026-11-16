@@ -416,6 +416,26 @@ void main() {
       expect(bounds.maxY, greaterThanOrEqualTo(Thresholds.tempDangerMin));
     });
 
+    test('fits only the readings when thresholds are hidden', () {
+      final spots = [const FlSpot(1, 50.0), const FlSpot(2, 55.0)];
+
+      final bounds = calculateYAxisBounds(
+        spots: spots,
+        safeMax: Thresholds.humiditySafeMax, // 60.0
+        dangerMin: Thresholds.humidityDangerMin, // 75.0
+        padding: 5.0,
+        absoluteMin: 0.0,
+        absoluteMax: 100.0,
+        interval: 20.0,
+        includeThresholds: false,
+      );
+
+      // minY = 50 - 5 = 45 -> floor to 20 = 40
+      // maxY = 55 + 5 = 60 -> ceil to 20 = 60
+      expect(bounds.minY, 40.0);
+      expect(bounds.maxY, 60.0);
+    });
+
     test('pipeline validates sensor failures so chart y-range ignores 0/0 unplugged data', () {
       final badRecords = [
         HistoryRecord(

@@ -6,11 +6,12 @@ import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/fake_system_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
+import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 
 void main() {
   group('DashboardScreen responsive layout', () {
     testWidgets('Mobile (360 dp): single column layout', (tester) async {
-      tester.view.physicalSize = const Size(360, 800);
+      tester.view.physicalSize = const Size(360, 1600);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.reset);
 
@@ -41,6 +42,24 @@ void main() {
       expect(find.text('Temperature'), findsOneWidget);
       expect(find.text('Humidity'), findsOneWidget);
       expect(find.text('Air quality'), findsOneWidget);
+
+      // Sentence case everywhere except the DEMO MODE ribbon.
+      expect(find.text('Live environment'), findsNothing);
+      expect(find.text('ESP32 Node 01'), findsOneWidget);
+      // ESP32 node card sits under the Telemetry heading.
+      expect(
+        tester.getTopLeft(find.text('ESP32 Node 01')).dy,
+        greaterThan(tester.getTopLeft(find.text('Telemetry Readout')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.text('ESP32 Node 01')).dy,
+        lessThan(tester.getTopLeft(find.text('Room is safe')).dy),
+      );
+      expect(find.text('Ventilation system'), findsOneWidget);
+      expect(find.text('Standby'), findsOneWidget);
+      expect(find.text('LIVE ENVIRONMENT'), findsNothing);
+      expect(find.text('VENTILATION SYSTEM'), findsNothing);
+      expect(find.text('STANDBY'), findsNothing);
 
       // Verify metric grid uses single column (childAspectRatio and layout)
       final gridView = tester.widget<GridView>(find.byType(GridView));
@@ -130,6 +149,54 @@ void main() {
     });
   });
 
+  group('DashboardScreen node status', () {
+    testWidgets('offline node shows last data time, no offline banner', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            systemRepositoryProvider.overrideWithValue(FakeSystemRepository()),
+            systemStateProvider.overrideWith(
+              (_) => Stream.value(
+                const SystemState(
+                  tier: Tier.safe,
+                  temperature: 27.0,
+                  humidity: 55.0,
+                  airQuality: 820.0,
+                  fanOn: false,
+                ),
+              ),
+            ),
+            connectedProvider.overrideWith((_) => Stream.value(true)),
+            deviceStatusProvider.overrideWith(
+              () => _FakeDeviceStatusNotifier(
+                const DeviceStatus(
+                  status: DeviceOnlineStatus.offline,
+                  formattedTime: '19:10',
+                ),
+              ),
+            ),
+          ],
+          child: const MaterialApp(home: DashboardScreen()),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Last data at 19:10'), findsOneWidget);
+      expect(find.text('Offline'), findsOneWidget);
+
+      // The separate offline card and the old stream row are gone.
+      expect(find.text('Device offline'), findsNothing);
+      expect(find.text('Live Firebase stream'), findsNothing);
+      expect(find.text('Unavailable'), findsNothing);
+    });
+  });
+
   group('DashboardScreen loading and error states', () {
     testWidgets('shows loading skeleton during initial load', (tester) async {
       await tester.pumpWidget(
@@ -175,4 +242,13 @@ void main() {
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
     });
   });
+}
+
+class _FakeDeviceStatusNotifier extends DeviceStatusNotifier {
+  _FakeDeviceStatusNotifier(this._status);
+
+  final DeviceStatus _status;
+
+  @override
+  DeviceStatus build() => _status;
 }
