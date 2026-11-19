@@ -60,6 +60,8 @@ class ProfileScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 12),
                 Center(child: _ProviderChip(kind: account?.kind)),
+                const SizedBox(height: 8),
+                _UidLabel(uid: account?.uid ?? ''),
                 const SizedBox(height: 24),
                 _NameEditor(account: account),
                 const SizedBox(height: 12),
@@ -109,6 +111,42 @@ class _ProviderChip extends StatelessWidget {
       label: Text(label),
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
+    );
+  }
+}
+
+/// Read-only Firebase Auth user id.
+///
+/// Selectable so a team member can copy it into a support message. The app
+/// never uses it for device control or any database write.
+class _UidLabel extends StatelessWidget {
+  const _UidLabel({required this.uid});
+
+  final String uid;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Column(
+      children: [
+        Text(
+          AppStrings.profileUidLabel,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(height: 2),
+        SelectableText(
+          uid.isEmpty ? AppStrings.placeholderValue : uid,
+          style: muted?.copyWith(fontFamily: 'monospace'),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }

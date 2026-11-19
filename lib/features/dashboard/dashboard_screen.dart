@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:aerosense_app/core/strings.dart';
 import 'package:aerosense_app/core/theme.dart';
 import 'package:aerosense_app/data/models/system_state.dart';
@@ -106,17 +104,6 @@ class _DashboardContent extends StatelessWidget {
         // Fan card
         const FanCard(),
         const SizedBox(height: 24),
-
-        if (kDebugMode) ...[
-          const SizedBox(height: 24),
-          Center(
-            child: TextButton.icon(
-              icon: const Icon(Icons.bug_report_outlined),
-              label: const Text('Debug: Raw /system'),
-              onPressed: () => context.push('/debug'),
-            ),
-          ),
-        ],
       ],
     );
 

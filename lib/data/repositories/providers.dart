@@ -125,6 +125,7 @@ AccountInfo _accountInfoFromUser(User user, {required bool isDemo}) {
 
   final photo = user.photoURL;
   return AccountInfo(
+    uid: user.uid,
     displayName: user.displayName ?? '',
     email: user.email ?? '',
     photoUrl: photo == null || photo.isEmpty ? null : photo,

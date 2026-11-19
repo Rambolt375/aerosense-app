@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:aerosense_app/core/config.dart';
 import 'package:aerosense_app/data/models/history_record.dart';
+import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
 import 'package:aerosense_app/features/dashboard/device_status_provider.dart';
 import 'package:aerosense_app/features/history/history_notifier.dart';
@@ -204,6 +207,166 @@ void main() {
       final status = container.read(deviceStatusProvider);
       expect(status.status, equals(DeviceOnlineStatus.online));
       expect(status.isOnline, isTrue);
+    });
+
+    group('live /system telemetry signal', () {
+      test('one changed sensor reading is enough to report online', () async {
+        final now = DateTime(2026, 11, 10, 14, 30);
+        final controller = StreamController<SystemState>();
+        addTearDown(controller.close);
+
+        final container = ProviderContainer(
+          overrides: [
+            demoModeProvider.overrideWith(() => _FakeDemoModeNotifier(false)),
+            clockProvider.overrideWithValue(() => now),
+            systemStateProvider.overrideWith((ref) => controller.stream),
+            historyNotifierProvider.overrideWith(
+              () => _FakeHistoryNotifier(
+                AsyncData(
+                  HistoryState(
+                    allRecords: [
+                      HistoryRecord(
+                        pushKey: 'rec-1',
+                        timestamp: now.subtract(const Duration(hours: 3)),
+                        temperature: 25.0,
+                        humidity: 55.0,
+                        airQuality: 900.0,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(historyNotifierProvider.future);
+        expect(
+          container.read(deviceStatusProvider).status,
+          DeviceOnlineStatus.offline,
+        );
+
+        // Keep the status notifier subscribed while the live stream emits
+        // (reading a provider once does not retain its listeners).
+        container.listen(deviceStatusProvider, (previous, next) {});
+
+        // DHT22 unplugged: temperature and humidity stay at 0, only the raw
+        // air-quality index moves.
+        controller.add(
+          SystemState(temperature: 0, humidity: 0, airQuality: 1200),
+        );
+        await pumpEventQueue();
+        controller.add(
+          SystemState(temperature: 0, humidity: 0, airQuality: 1260),
+        );
+        await pumpEventQueue();
+
+        final status = container.read(deviceStatusProvider);
+        expect(status.status, DeviceOnlineStatus.online);
+        expect(status.isOnline, isTrue);
+        expect(status.lastSeen, now);
+      });
+
+      test('temperature-only or humidity-only changes also count', () {
+        final base = SystemState(temperature: 0, humidity: 0, airQuality: 1200);
+        expect(
+          sensorReadingsChanged(
+            base,
+            SystemState(temperature: 24.5, humidity: 0, airQuality: 1200),
+          ),
+          isTrue,
+        );
+        expect(
+          sensorReadingsChanged(
+            base,
+            SystemState(temperature: 0, humidity: 61.0, airQuality: 1200),
+          ),
+          isTrue,
+        );
+        expect(
+          sensorReadingsChanged(
+            base,
+            SystemState(temperature: 0, humidity: 0, airQuality: 1200),
+          ),
+          isFalse,
+        );
+      });
+
+      test('repeating the same readings is not proof of life', () async {
+        final now = DateTime(2026, 11, 10, 14, 30);
+        final controller = StreamController<SystemState>();
+        addTearDown(controller.close);
+
+        final container = ProviderContainer(
+          overrides: [
+            demoModeProvider.overrideWith(() => _FakeDemoModeNotifier(false)),
+            clockProvider.overrideWithValue(() => now),
+            systemStateProvider.overrideWith((ref) => controller.stream),
+            historyNotifierProvider.overrideWith(
+              () => _FakeHistoryNotifier(
+                AsyncData(
+                  HistoryState(
+                    allRecords: [
+                      HistoryRecord(
+                        pushKey: 'rec-1',
+                        timestamp: now.subtract(const Duration(hours: 3)),
+                        temperature: 0,
+                        humidity: 0,
+                        airQuality: 1200,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(historyNotifierProvider.future);
+
+        for (var i = 0; i < 3; i++) {
+          controller.add(
+            SystemState(temperature: 0, humidity: 0, airQuality: 1200),
+          );
+          await pumpEventQueue();
+        }
+
+        expect(
+          container.read(deviceStatusProvider).status,
+          DeviceOnlineStatus.offline,
+        );
+      });
+
+      test('a single cached snapshot does not fake an online device', () async {
+        final controller = StreamController<SystemState>();
+        addTearDown(controller.close);
+
+        final container = ProviderContainer(
+          overrides: [
+            demoModeProvider.overrideWith(() => _FakeDemoModeNotifier(false)),
+            systemStateProvider.overrideWith((ref) => controller.stream),
+            historyNotifierProvider.overrideWith(
+              () => _FakeHistoryNotifier(
+                const AsyncData(HistoryState(allRecords: [])),
+              ),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await container.read(historyNotifierProvider.future);
+        controller.add(
+          SystemState(temperature: 24, humidity: 50, airQuality: 1200),
+        );
+        await pumpEventQueue();
+
+        expect(
+          container.read(deviceStatusProvider).status,
+          DeviceOnlineStatus.unknown,
+        );
+      });
     });
   });
 }

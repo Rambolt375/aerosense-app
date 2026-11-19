@@ -397,6 +397,16 @@
   - Photo fallback uses `WebHtmlElementStrategy.fallback` plus `errorBuilder`. Per the Flutter 3.47.9 SDK docs, `fallback` fetches bytes first (CanvasKit can draw them) and only switches to an HTML `<img>` platform view when the fetch fails; when neither works the initial is drawn. Tests assert the initial survives a failed load.
   - The avatar lives in each shell screen's `AppBar.actions` (the shell does not own an app bar), which covers both `NavigationBar` and `NavigationRail` layouts and keeps it off `/login`, `/profile` and `/assistant` by construction.
   - Firebase Auth profile edits are not Realtime Database writes, so the AGENTS.md write rules are unchanged.
+- 2026-11-18: Device online detection now accepts a single live reading change.
+  - `deviceStatusProvider` used to trust only the newest `/history` record, so a board whose DHT22 was unplugged (temperature/humidity pinned at 0, raw AQ still drifting) could look offline even though `/system` kept updating.
+  - New `liveTelemetryActivityProvider` watches `/system` and records the last time *any one* of `temperature`, `humidity` or `airQuality` changed. The first snapshot after (re)connect is RTDB's cached replay, so it is deliberately not counted as proof of life.
+  - `DeviceStatus` now takes the later of the newest `/history` timestamp and the live change time; when both are absent it still reports `unknown` (no offline claim), and the 2-missed-cycle (20 min) threshold is unchanged. A history fetch error no longer hides a live signal.
+  - "Last data at HH:mm", the offline/reconnect notices, the fan lock and the forecast pause all follow this combined timestamp automatically.
+  - Tests: an AQ-only change flips a stale device to online, temperature-only and humidity-only changes count, repeated identical readings and a lone cached snapshot do not. 579 tests pass, `flutter analyze` clean.
+- 2026-11-18: Dashboard debug entry removed; the profile page now shows the account UID.
+  - The "Debug: Raw /system" button and its two imports (`kDebugMode`, `go_router`) are gone from `dashboard_screen.dart`. `DebugScreen` and the `/debug` route are still registered in debug builds, so the raw snapshot stays reachable by URL for bench testing but is no longer exposed in the UI.
+  - `AccountInfo` gained a read-only `uid`, mapped from the Firebase `User` in `accountProvider` (Demo Mode reports `demo-uid`). `ProfileScreen` shows it as a selectable monospace value under the provider chip, labelled `User ID`. It is display-only: nothing uses it for device control or writes.
+  - Profile tests assert the label and the UID for both a real and a Demo Mode account.
 
 ## Known issues
 - Inter font files are pending human addition into `assets/fonts/`.

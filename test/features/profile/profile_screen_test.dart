@@ -64,6 +64,8 @@ void main() {
         );
         expect(find.text('Alice Visitor'), findsOneWidget);
         expect(find.text('alice@example.com'), findsOneWidget);
+        expect(find.text(AppStrings.profileUidLabel), findsOneWidget);
+        expect(find.text('test-uid'), findsOneWidget);
         expect(find.text(AppStrings.providerGoogle), findsOneWidget);
         expect(find.text(AppStrings.profileCaption), findsOneWidget);
         expect(find.text(AppStrings.profileEditName), findsOneWidget);
@@ -213,6 +215,7 @@ void main() {
       expect(find.text(AppStrings.providerDemo), findsOneWidget);
       expect(find.text(AppStrings.profileDemoNotSaved), findsOneWidget);
       expect(find.text('Demo User'), findsOneWidget);
+      expect(find.text('demo-uid'), findsOneWidget);
     });
 
     testWidgets('edits the fake profile in memory only', (tester) async {

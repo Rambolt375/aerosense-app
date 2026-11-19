@@ -12,12 +12,19 @@ enum AccountProviderKind { google, team, demo }
 @immutable
 class AccountInfo {
   const AccountInfo({
+    required this.uid,
     required this.displayName,
     required this.email,
     required this.kind,
     this.photoUrl,
     this.isDemo = false,
   });
+
+  /// Firebase Auth user id, read-only.
+  ///
+  /// Shown on the profile page for account support only; nothing in the app
+  /// uses it for device control or database writes.
+  final String uid;
 
   /// Raw profile name; may be empty when the account has never set one.
   final String displayName;

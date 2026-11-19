@@ -25,6 +25,7 @@ class AppStrings {
       'Could not save your name. Check your connection.';
   static const profileNameInvalid = 'Enter a name with 1 to 40 characters.';
   static const profileNameLabel = 'Display name';
+  static const profileUidLabel = 'User ID';
   static const profileCaption = 'Changing your name only affects AeroSense.';
   static const profileDemoNotSaved = 'Demo Mode: not saved';
   static const placeholderValue = '--';
