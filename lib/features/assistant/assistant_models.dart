@@ -21,6 +21,9 @@ enum AssistantStatus {
 /// In-memory-only chat state.
 ///
 /// [messages] keeps the newest [maxMessages] messages and is never persisted.
+/// [pendingQuestion] is the visitor's in-flight question: it is rendered as a
+/// bubble immediately, but it is deliberately **not** part of [messages] and
+/// never enters the history sent to the repository.
 class AssistantChatState {
   const AssistantChatState({
     this.status = AssistantStatus.idle,
@@ -28,6 +31,7 @@ class AssistantChatState {
     this.errorMessage,
     this.retryAfter,
     this.lastQuestion,
+    this.pendingQuestion,
   });
 
   final AssistantStatus status;
@@ -42,5 +46,22 @@ class AssistantChatState {
   /// Last attempted question, used by the "Try again" action.
   final String? lastQuestion;
 
+  /// Visitor question currently in flight, or the one that failed.
+  ///
+  /// Rendered above the thinking bubble (and above the error card) so the
+  /// visitor always sees what was asked, without duplicating it on retry.
+  final String? pendingQuestion;
+
   bool get isThinking => status == AssistantStatus.thinking;
+
+  /// The transcript as rendered: previous messages, then the in-flight or
+  /// failed question when there is one.
+  List<AssistantMessage> get visibleMessages {
+    final question = pendingQuestion;
+    if (question == null) return messages;
+    return <AssistantMessage>[
+      ...messages,
+      AssistantMessage(role: AssistantRole.visitor, text: question),
+    ];
+  }
 }

@@ -25,6 +25,15 @@ class AppConfig {
   /// Empty means the live assistant is hidden; "Summarize" still works.
   static const String geminiApiKey = String.fromEnvironment('GEMINI_API_KEY');
 
+  /// Where the landing page sends people for the Android build.
+  ///
+  /// The public GitHub Releases page, not a direct `.apk` file: the page always
+  /// lists the newest build, shows its notes, and cannot 404 when an asset is
+  /// renamed. It is a plain redirect to GitHub, so the visitor chooses what to
+  /// download there.
+  static const String apkReleasesUrl =
+      'https://github.com/Rambolt375/aerosense-app/releases';
+
   /// Output cap per answer (the prompt asks for under ~120 words).
   static const int assistantMaxOutputTokens = 600;
 

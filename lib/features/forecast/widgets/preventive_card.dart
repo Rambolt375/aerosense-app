@@ -13,7 +13,9 @@ import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 /// Displays:
 /// - Operational status pill (Off, Armed, Running, Unavailable).
 /// - Current status explanation / planned run time.
-/// - Team-only "Run pre-ventilation now (demo)" button with disabled reasons.
+/// - In Demo Mode only, a team-only "Run pre-ventilation now (demo)" button with
+///   disabled reasons. Live mode has no manual pre-ventilation control: the
+///   chain can only fire automatically.
 ///
 /// Uses `.select()` so telemetry ticks do not cause repaints unless
 /// operational state or relevant gates change.
@@ -24,7 +26,6 @@ class PreVentilationCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final tierColors = context.tierColors;
-    final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
     // Granular selectors to prevent unnecessary repaints
@@ -41,77 +42,10 @@ class PreVentilationCard extends ConsumerWidget {
       preventiveDecisionProvider.select((d) => d.nextPlannedRunTime),
     );
     final isTeam = ref.watch(isTeamAccountProvider);
-
-    // Gate selectors for demo button disabled state
-    final allowPreventive = ref.watch(
-      forecastPreferencesProvider.select(
-        (p) => p.asData?.value.allowPreventive ?? false,
-      ),
-    );
-    final isTriggerActive = ref.watch(
-      forecastPreferencesProvider.select(
-        (p) => p.asData?.value.preventiveTrigger ?? false,
-      ),
-    );
-    final isOffline = ref.watch(
-      deviceStatusProvider.select((s) => s.isOffline),
-    );
-    final isDanger = ref.watch(
-      systemStateProvider.select((s) => s.asData?.value.tier == Tier.danger),
-    );
-    final isFanOn = ref.watch(
-      systemStateProvider.select((s) => s.asData?.value.fanOn ?? false),
-    );
-    final isManualToggle = ref.watch(
-      systemStateProvider.select((s) => s.asData?.value.manualToggle ?? false),
-    );
-    final isPending = ref.watch(
-      runPreVentilationNotifierProvider.select((s) => s.isPending),
-    );
-
-    // SnackBar listener for manual run feedback and errors
-    ref.listen<RunPreVentilationState>(runPreVentilationNotifierProvider, (
-      previous,
-      next,
-    ) {
-      if (next.errorMessage != null) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.clearSnackBars();
-        messenger.showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(next.errorMessage!),
-          ),
-        );
-        ref.read(runPreVentilationNotifierProvider.notifier).clearMessages();
-      } else if (next.feedbackMessage != null) {
-        final messenger = ScaffoldMessenger.of(context);
-        messenger.clearSnackBars();
-        messenger.showSnackBar(
-          SnackBar(
-            behavior: SnackBarBehavior.floating,
-            content: Text(next.feedbackMessage!),
-          ),
-        );
-        ref.read(runPreVentilationNotifierProvider.notifier).clearMessages();
-      }
-    });
-
-    // Determine disabled reason for demo run button
-    String? disabledReason;
-    if (!allowPreventive) {
-      disabledReason = 'Disabled in Settings';
-    } else if (isOffline) {
-      disabledReason = 'Device is offline';
-    } else if (isDanger) {
-      disabledReason = 'Safety override active: fan is locked ON';
-    } else if (isTriggerActive || isManualToggle || isFanOn) {
-      disabledReason = 'Ventilation cycle is already in progress';
-    } else if (isPending) {
-      disabledReason = 'Sending request...';
-    }
-
-    final canRunDemo = disabledReason == null;
+    // The manual demo trigger exists only in Demo Mode. In live mode the
+    // section is absent from the widget tree, so there is no control that could
+    // be mistaken for a real pre-ventilation command.
+    final showDemoTrigger = ref.watch(demoModeProvider);
 
     return Card(
       child: Padding(
@@ -141,45 +75,8 @@ class PreVentilationCard extends ConsumerWidget {
               nextPeak: nextPeak,
             ),
 
-            // Team-only "Run pre-ventilation now (demo)" section
-            if (isTeam) ...[
-              const Divider(height: 24),
-              OutlinedButton(
-                onPressed: canRunDemo
-                    ? () {
-                        ref
-                            .read(runPreVentilationNotifierProvider.notifier)
-                            .runNow();
-                      }
-                    : null,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isPending)
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      const Icon(Icons.play_arrow_outlined, size: 18),
-                    const SizedBox(width: 8),
-                    const Flexible(
-                      child: Text('Run pre-ventilation now (demo)'),
-                    ),
-                  ],
-                ),
-              ),
-              if (disabledReason != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Button unavailable: $disabledReason',
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ],
+            // Team-only "Run pre-ventilation now (demo)" section, Demo Mode only.
+            if (isTeam && showDemoTrigger) const _DemoTriggerSection(),
           ],
         ),
       ),
@@ -301,5 +198,117 @@ class PreVentilationCard extends ConsumerWidget {
           ),
         );
     }
+  }
+}
+
+/// Demo-only manual pre-ventilation trigger.
+///
+/// Split into its own widget so the live-mode card never builds any of its
+/// providers or listeners. Behaviour is unchanged from Phase 6c: the button is
+/// disabled with a visible reason when a firmware gate is closed, and the
+/// notifier surfaces the decline and failure snackbars.
+class _DemoTriggerSection extends ConsumerWidget {
+  const _DemoTriggerSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final textTheme = theme.textTheme;
+
+    final allowPreventive = ref.watch(
+      forecastPreferencesProvider.select(
+        (p) => p.asData?.value.allowPreventive ?? false,
+      ),
+    );
+    final isTriggerActive = ref.watch(
+      forecastPreferencesProvider.select(
+        (p) => p.asData?.value.preventiveTrigger ?? false,
+      ),
+    );
+    final isOffline = ref.watch(
+      deviceStatusProvider.select((s) => s.isOffline),
+    );
+    final isDanger = ref.watch(
+      systemStateProvider.select((s) => s.asData?.value.tier == Tier.danger),
+    );
+    final isFanOn = ref.watch(
+      systemStateProvider.select((s) => s.asData?.value.fanOn ?? false),
+    );
+    final isManualToggle = ref.watch(
+      systemStateProvider.select((s) => s.asData?.value.manualToggle ?? false),
+    );
+    final isPending = ref.watch(
+      runPreVentilationNotifierProvider.select((s) => s.isPending),
+    );
+
+    // SnackBar listener for manual run feedback and errors
+    ref.listen<RunPreVentilationState>(runPreVentilationNotifierProvider, (
+      previous,
+      next,
+    ) {
+      final message = next.errorMessage ?? next.feedbackMessage;
+      if (message == null) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(behavior: SnackBarBehavior.floating, content: Text(message)),
+      );
+      ref.read(runPreVentilationNotifierProvider.notifier).clearMessages();
+    });
+
+    // Determine disabled reason for demo run button
+    String? disabledReason;
+    if (!allowPreventive) {
+      disabledReason = 'Disabled in Settings';
+    } else if (isOffline) {
+      disabledReason = 'Device is offline';
+    } else if (isDanger) {
+      disabledReason = 'Safety override active: fan is locked ON';
+    } else if (isTriggerActive || isManualToggle || isFanOn) {
+      disabledReason = 'Ventilation cycle is already in progress';
+    } else if (isPending) {
+      disabledReason = 'Sending request...';
+    }
+
+    final canRunDemo = disabledReason == null;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 24),
+        OutlinedButton(
+          onPressed: canRunDemo
+              ? () {
+                  ref.read(runPreVentilationNotifierProvider.notifier).runNow();
+                }
+              : null,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isPending)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                const Icon(Icons.play_arrow_outlined, size: 18),
+              const SizedBox(width: 8),
+              const Flexible(child: Text('Run pre-ventilation now (demo)')),
+            ],
+          ),
+        ),
+        if (disabledReason != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Button unavailable: $disabledReason',
+            style: textTheme.bodySmall?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }

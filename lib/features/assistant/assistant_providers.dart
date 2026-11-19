@@ -65,6 +65,11 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
   AssistantChatState build() => const AssistantChatState();
 
   /// Asks [question], enforcing the client limiter before any network call.
+  ///
+  /// The question is shown immediately as a visitor bubble through
+  /// [AssistantChatState.pendingQuestion], but it is never part of
+  /// [AssistantChatState.messages] while in flight, so the history sent to the
+  /// repository stays "previous messages only".
   Future<void> ask(String question) async {
     final trimmed = question.trim();
     if (trimmed.isEmpty) return;
@@ -72,13 +77,18 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
     final current = state;
     if (current.isThinking) return;
 
+    // Only completed messages are history. The in-flight question is kept
+    // apart, so the model never sees the question twice.
+    final history = List<AssistantMessage>.unmodifiable(current.messages);
+
     final repository = ref.read(assistantRepositoryProvider);
     if (repository == null) {
       state = AssistantChatState(
         status: AssistantStatus.error,
-        messages: current.messages,
+        messages: history,
         errorMessage: AppStrings.assistantUnavailableBody,
         lastQuestion: trimmed,
+        pendingQuestion: trimmed,
       );
       return;
     }
@@ -87,9 +97,10 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
     if (summaryInput == null) {
       state = AssistantChatState(
         status: AssistantStatus.error,
-        messages: current.messages,
+        messages: history,
         errorMessage: AppStrings.summaryNoDataBody,
         lastQuestion: trimmed,
+        pendingQuestion: trimmed,
       );
       return;
     }
@@ -101,18 +112,19 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
     if (!decision.isAllowed) {
       state = AssistantChatState(
         status: AssistantStatus.rateLimited,
-        messages: current.messages,
+        messages: history,
         retryAfter: decision.retryAfter,
         lastQuestion: trimmed,
+        pendingQuestion: trimmed,
       );
       return;
     }
 
-    final history = List<AssistantMessage>.unmodifiable(current.messages);
     state = AssistantChatState(
       status: AssistantStatus.thinking,
-      messages: current.messages,
+      messages: history,
       lastQuestion: trimmed,
+      pendingQuestion: trimmed,
     );
 
     final request = buildAssistantRequest(
@@ -148,7 +160,9 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
       if (!ref.mounted) return;
       // No automatic retry: the visible "Try again" action re-enters the
       // limiter and is the only way to send another request. Questions and
-      // answers are never logged, in any build.
+      // answers are never logged, in any build. The visitor bubble stays via
+      // [AssistantChatState.pendingQuestion]; "Try again" re-sends the same
+      // question without adding a second bubble.
       state = AssistantChatState(
         status: AssistantStatus.error,
         messages: history,
@@ -156,6 +170,7 @@ class AssistantChatNotifier extends Notifier<AssistantChatState> {
             ? assistantFailureMessage(error.failure)
             : AppStrings.assistantErrorBody,
         lastQuestion: trimmed,
+        pendingQuestion: trimmed,
       );
     }
   }

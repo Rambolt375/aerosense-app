@@ -15,6 +15,8 @@ import 'package:aerosense_app/features/dashboard/dashboard_screen.dart';
 import 'package:aerosense_app/features/forecast/forecast_screen.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/features/history/history_screen.dart';
+import 'package:aerosense_app/features/landing/landing_providers.dart';
+import 'package:aerosense_app/features/landing/landing_screen.dart';
 import 'package:aerosense_app/features/profile/profile_screen.dart';
 import 'package:aerosense_app/features/settings/settings_screen.dart';
 import 'package:aerosense_app/shared/demo_ribbon.dart';
@@ -24,46 +26,100 @@ import 'package:aerosense_app/shared/assistant_speed_dial.dart';
 // Router provider — created once, never rebuilt inside build()
 // ---------------------------------------------------------------------------
 
+/// Returns [from] only when it is a safe internal path worth returning to.
+///
+/// A deep link that is not one of the public entry points is worth returning
+/// to after sign-in; anything else (external URL, protocol-relative `//host`,
+/// or one of the entry points themselves) falls back to the dashboard. The
+/// dashboard is excluded too, because it is already the default after sign-in
+/// and would otherwise leave a stale `from` in the URL after an explicit
+/// sign-out.
+String? safeRedirectFrom(String? from) {
+  if (from == null || from.isEmpty) return null;
+  if (!from.startsWith('/')) return null;
+  if (from.startsWith('//')) return null;
+  const rejected = {'/', '/login', '/splash', '/dashboard'};
+  final path = from.split('?').first;
+  if (rejected.contains(path)) return null;
+  return from;
+}
+
 /// Provides the [GoRouter] instance. Created once from [ProviderScope].
 ///
-/// The router is kept as a Provider so it can read [authStateProvider] and
-/// receive a refreshListenable wired to the auth stream.
+/// The router deliberately does **not** watch the auth state: rebuilding it
+/// would recreate the router at [GoRouter.initialLocation] and lose the page the
+/// visitor asked for. Instead the auth state is read inside `redirect` and the
+/// router is refreshed through [RouterRefreshNotifier] whenever it changes.
 final routerProvider = Provider<GoRouter>((ref) {
-  final authRepo = ref.watch(authRepositoryProvider);
-  final authState = ref.watch(authStateProvider);
+  final refresh = RouterRefreshNotifier();
+  ref.onDispose(refresh.dispose);
 
-  final refreshListenable = GoRouterRefreshStream(authRepo.authStateChanges());
-  ref.onDispose(refreshListenable.dispose);
+  // Refresh, never rebuild. `ref.listen` keeps the provider alive without
+  // making this provider depend on it.
+  ref.listen(authStateProvider, (_, _) => refresh.refresh());
+  ref.listen(webLandingEnabledProvider, (_, _) => refresh.refresh());
 
   return GoRouter(
     initialLocation: '/splash',
-    refreshListenable: refreshListenable,
+    refreshListenable: refresh,
     redirect: (context, state) {
-      final isLoading = authState.isLoading;
-      final user = authRepo.currentUser;
+      final auth = ref.read(authStateProvider);
       final location = state.matchedLocation;
       final from = state.uri.queryParameters['from'];
 
-      // While auth is loading, stay on or redirect to splash
-      if (isLoading) {
+      // While the first auth event is in flight, park on splash and remember
+      // where the visitor was going.
+      if (auth.isLoading) {
         if (location == '/splash') return null;
-        final target = state.uri.toString();
-        return '/splash?from=${Uri.encodeComponent(target)}';
+        return '/splash?from=${Uri.encodeComponent(state.uri.toString())}';
       }
 
-      // Auth resolved: handle splash exit
+      final user = auth.value;
+
+      // Auth resolved: leave splash for the remembered location or the entry
+      // point for this platform. A signed-out deep link is carried through to
+      // the login screen so the visitor still lands where they asked.
       if (location == '/splash') {
-        if (user == null) return '/login';
-        // Return to original location or default to dashboard
-        return from ?? '/dashboard';
+        if (user != null) return safeRedirectFrom(from) ?? '/dashboard';
+        final target = safeRedirectFrom(from);
+        if (target != null) {
+          return '/login?from=${Uri.encodeComponent(target)}';
+        }
+        return ref.read(webLandingEnabledProvider) ? '/' : '/login';
       }
 
-      // Normal auth guards
-      if (user == null && location != '/login') return '/login';
-      if (user != null && location == '/login') return '/dashboard';
-      return null;
+      if (user != null) {
+        // Signed-in visitors never see the public pages.
+        if (location == '/login') {
+          return safeRedirectFrom(from) ?? '/dashboard';
+        }
+        if (location == '/') return '/dashboard';
+        return null;
+      }
+
+      // Signed out: `/` is the landing page on web and the login screen on
+      // Android; `/login` is always public; everything else is guarded and
+      // remembers where the visitor wanted to go.
+      if (location == '/login') return null;
+      if (location == '/') {
+        return ref.read(webLandingEnabledProvider) ? null : '/login';
+      }
+      // Only a deep link worth returning to is carried through sign-in; the
+      // dashboard is the default anyway, so it must not leave a stale `from`.
+      final target = safeRedirectFrom(state.uri.toString());
+      if (target == null) {
+        return ref.read(webLandingEnabledProvider) ? '/' : '/login';
+      }
+      return '/login?from=${Uri.encodeComponent(target)}';
     },
     routes: [
+      // Public landing page. Registered on every platform so the route table is
+      // identical; the redirect decides whether Android ever sees it.
+      GoRoute(
+        path: '/',
+        name: 'landing',
+        builder: (context, state) => const LandingScreen(),
+      ),
       GoRoute(
         path: '/splash',
         name: 'splash',

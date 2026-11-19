@@ -16,6 +16,16 @@ import 'package:aerosense_app/features/forecast/preventive_decision.dart';
 import 'package:aerosense_app/features/forecast/preventive_providers.dart';
 import 'package:aerosense_app/features/forecast/widgets/preventive_card.dart';
 
+class _AlwaysDemoNotifier extends DemoModeNotifier {
+  @override
+  bool build() => true;
+}
+
+class _NeverDemoNotifier extends DemoModeNotifier {
+  @override
+  bool build() => false;
+}
+
 class _ThrowingSystemRepository extends FakeSystemRepository {
   @override
   Future<void> requestPreventiveTrigger() async {
@@ -39,15 +49,32 @@ class _MockDeviceStatusNotifier extends DeviceStatusNotifier {
   DeviceStatus build() => _status;
 }
 
+/// Emits the firmware-decline feedback as soon as the demo run is requested.
+class _DecliningRunNotifier extends RunPreVentilationNotifier {
+  @override
+  RunPreVentilationState build() => const RunPreVentilationState();
+
+  @override
+  Future<void> runNow() async {
+    state = const RunPreVentilationState(
+      feedbackMessage: 'The device declined (permission off or busy)',
+    );
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   Widget buildTestCard({
     bool isTeam = true,
+    bool demo = true,
     List<dynamic> overrides = const [],
   }) {
     return ProviderScope(
       overrides: [
+        demoModeProvider.overrideWith(
+          () => demo ? _AlwaysDemoNotifier() : _NeverDemoNotifier(),
+        ),
         authRepositoryProvider.overrideWithValue(FakeAuthRepository()),
         historyRepositoryProvider.overrideWithValue(FakeHistoryRepository()),
         isTeamAccountProvider.overrideWithValue(isTeam),
@@ -332,6 +359,102 @@ void main() {
       },
     );
 
+    testWidgets(
+      'live mode renders no demo button, no reason line and no divider',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final fakeRepo = FakeSystemRepository();
+        await fakeRepo.setAllowPreventive(false);
+
+        await tester.pumpWidget(
+          buildTestCard(
+            demo: false,
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              systemRepositoryProvider.overrideWithValue(fakeRepo),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Pre-Ventilation'), findsOneWidget);
+        expect(find.text('Off'), findsOneWidget);
+        expect(
+          find.text('Automated pre-ventilation is turned off in Settings.'),
+          findsOneWidget,
+        );
+
+        // The whole demo section is absent, not merely disabled.
+        expect(find.text('Run pre-ventilation now (demo)'), findsNothing);
+        expect(find.textContaining('Button unavailable'), findsNothing);
+        expect(find.byType(OutlinedButton), findsNothing);
+        expect(find.byType(Divider), findsNothing);
+
+        await tester.pumpWidget(const SizedBox());
+        fakeRepo.dispose();
+      },
+    );
+
+    testWidgets(
+      'live mode card is exactly as tall as the same card without the demo '
+      'section in Demo Mode',
+      (tester) async {
+        SharedPreferences.setMockInitialValues({});
+        final prefs = await SharedPreferences.getInstance();
+        final liveRepo = FakeSystemRepository();
+        final demoRepo = FakeSystemRepository();
+
+        const decision = PreventiveDecision(
+          canTrigger: false,
+          uiState: PreventiveUiState.armed,
+        );
+
+        // Live mode with a team account: no reserved space for the button.
+        await tester.pumpWidget(
+          buildTestCard(
+            demo: false,
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              systemRepositoryProvider.overrideWithValue(liveRepo),
+              preventiveDecisionProvider.overrideWith(
+                () => _MockPreventiveDecisionNotifier(decision),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final liveHeight = tester
+            .getSize(find.byType(PreVentilationCard))
+            .height;
+
+        // Visitor account in Demo Mode: same card without the demo section.
+        await tester.pumpWidget(
+          buildTestCard(
+            demo: true,
+            isTeam: false,
+            overrides: [
+              sharedPreferencesProvider.overrideWithValue(prefs),
+              systemRepositoryProvider.overrideWithValue(demoRepo),
+              preventiveDecisionProvider.overrideWith(
+                () => _MockPreventiveDecisionNotifier(decision),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        final visitorHeight = tester
+            .getSize(find.byType(PreVentilationCard))
+            .height;
+
+        expect(liveHeight, visitorHeight);
+
+        await tester.pumpWidget(const SizedBox());
+        liveRepo.dispose();
+        demoRepo.dispose();
+      },
+    );
+
     testWidgets('hides demo run section for non-team visitor accounts', (
       tester,
     ) async {
@@ -351,6 +474,53 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Run pre-ventilation now (demo)'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+      fakeRepo.dispose();
+    });
+
+    testWidgets('Demo Mode keeps the decline snackbar for the demo button', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final fakeRepo = FakeSystemRepository();
+      await fakeRepo.setAllowPreventive(true);
+
+      const decision = PreventiveDecision(
+        canTrigger: true,
+        uiState: PreventiveUiState.armed,
+      );
+
+      await tester.pumpWidget(
+        buildTestCard(
+          demo: true,
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            systemRepositoryProvider.overrideWithValue(fakeRepo),
+            preventiveDecisionProvider.overrideWith(
+              () => _MockPreventiveDecisionNotifier(decision),
+            ),
+            runPreVentilationNotifierProvider.overrideWith(
+              _DecliningRunNotifier.new,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final button = find.widgetWithText(
+        OutlinedButton,
+        'Run pre-ventilation now (demo)',
+      );
+      expect(button, findsOneWidget);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('The device declined (permission off or busy)'),
+        findsOneWidget,
+      );
 
       await tester.pumpWidget(const SizedBox());
       fakeRepo.dispose();

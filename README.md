@@ -92,6 +92,41 @@ cp env.android.example.json env.android.json
 Both real files are gitignored and must never be committed. Without a key, the app still
 builds and runs; only the **Ask AeroSense** action is hidden.
 
+### Building Android APK & Web
+
+Both builds read their settings from a JSON file with `--dart-define-from-file`. The web build
+also carries the Gemini key (the assistant runs in the browser), so **both** builds need a key.
+
+```bash
+# 1. Android release APK (Gemini key for the assistant)
+flutter build apk --release --dart-define-from-file=env.android.json
+#    -> build/app/outputs/flutter-apk/app-release.apk
+
+# 2. Web release (Gemini key for the assistant)
+flutter build web --release --dart-define-from-file=env.json
+#    -> build/web
+```
+
+The keys in both builds are **temporary competition keys**: create them in a separate no-billing
+project, restrict each one per platform, keep the release APK to team and booth devices, and
+**revoke both keys after the event**. The production design is a backend proxy; see
+**Assistant and keys** below.
+
+The landing page's **Get the Android app** button is a plain redirect to the public GitHub
+Releases page:
+
+```text
+https://github.com/Rambolt375/aerosense-app/releases
+```
+
+It is a hard-coded constant (`AppConfig.apkReleasesUrl`), not a build flag: the page always lists
+the newest build and its notes, so it cannot go stale or 404 when an asset is renamed. Publish the
+APK as a GitHub Release asset; the button then opens the releases page in a new tab
+(`noopener,noreferrer`) and the visitor picks the build there. Nothing is installed by the app
+itself. The hero also has a **Download APK** button, which only scrolls down to this section so
+the visitor reads what the build is first. To point the button elsewhere (a mirror, a direct
+file), override `apkDownloadUrlProvider` or change the constant.
+
 ### Demo Mode (Fully Simulated Telemetry)
 
 Demo Mode runs without a Firebase connection or hardware and uses the scripted assistant:
@@ -104,6 +139,24 @@ flutter run --dart-define=DEMO=true
 Demo Mode can also be toggled at runtime from the **Login** screen ("Try Demo Mode") or the
 **Settings** screen. The persistent **DEMO MODE** ribbon, the speed-dial action label, and the
 Ask AeroSense screen all label scripted answers as scripted.
+
+### Entry points and the public landing page
+
+| Visitor | Web | Android |
+|---|---|---|
+| Signed out | `/` is the public landing page | straight to `/login` |
+| Signed in | `/dashboard` | `/dashboard` |
+
+The landing page is registered on both platforms, but a provider (`webLandingEnabledProvider`,
+`kIsWeb` by default) decides what `/` does, so the redirect table is testable without a browser.
+It is a static page: hero, the three states, how it works, cost, and a link to the dashboard.
+"Try the demo" turns Demo Mode on and opens the dashboard in one tap.
+
+Deep links still work. A signed-out visit to a guarded route goes to `/login?from=<location>`,
+and sign-in returns there. `from` is honoured only for internal paths that are not `/`,
+`/login`, `/splash` or `/dashboard`, so it cannot be used to bounce a visitor to an external
+site. The router reads the auth state inside its redirect and is refreshed, never rebuilt, so an
+auth event does not reset the location.
 
 ---
 
@@ -139,8 +192,9 @@ Notes:
 - Passing `--no-web-resources-cdn` to a web build downloads and bundles CanvasKit and static
   web resources locally, so the demo works even on unstable venue Wi-Fi.
 - Demo builds keep the `DEMO MODE` ribbon; they never call the live assistant.
-- The Android release APK carries a key. Keep it to team and booth devices only; do not publish
-  it. See **Assistant and keys** below.
+- The Android release APK is published as a GitHub Release, so it is publicly downloadable and the
+  Android Gemini key inside it must be treated as **public**: no-billing free-tier key, revoked
+  after the event, with the project quota as the only ceiling. See **Assistant and keys** below.
 
 ---
 
@@ -149,8 +203,8 @@ Notes:
 `firebase.json` is configured to serve the single-page application from `build/web` with URL rewrites to `/index.html`:
 
 ```bash
-# 1. Build the production web bundle
-flutter build web --release
+# 1. Build the production web bundle (the key file also carries the assistant key)
+flutter build web --release --dart-define-from-file=env.json
 
 # 2. Deploy to Firebase Hosting
 firebase deploy --only hosting
@@ -189,6 +243,25 @@ appear on Login, Profile, or Ask AeroSense routes.
 The app-bar account avatar opens a menu below the photo with **Profile** and **Sign out**. Profile
 edits affect the AeroSense display name only; they do not change the Google or team-account name.
 
+### Ask AeroSense screen
+
+One full-width composer at the bottom, capped at 840 dp together with the transcript on wide
+screens and inset 16 dp on phones. The field is multiline (1-4 lines) and Send is a 48 dp icon
+button inside the field, disabled while the field is empty or a question is in flight. Enter sends
+and Shift+Enter inserts a newline on web and desktop. The `n/300` counter only appears above 240
+characters; the 300-character cap is unchanged. The field clears and keeps focus after sending.
+
+The visitor's bubble appears immediately on send and on chip tap, with the thinking bubble below
+it; the answer replaces the thinking bubble. On error or rate limit the visitor bubble stays and
+the error card renders under it, and **Try again** re-sends the same question without adding a
+second bubble. Only the previous messages (last four) are sent as history, never the question that
+is currently in flight. The transcript scrolls to the newest message.
+
+Under the composer there is one short line: "AI can be wrong. The device alert decides. Questions
+go to Google Gemini." (Indonesian equivalent when the language selector is on Indonesia.) The info
+button next to it opens an **About this assistant** sheet with the full wording, including "Don't
+type personal information." and, in Demo Mode, the scripted-answers note.
+
 ### Key setup (competition-only exception)
 
 The normal rule is "no API key in the app". This competition build is a documented exception:
@@ -198,7 +271,10 @@ The normal rule is "no API key in the app". This competition build is a document
    - **Android key** (`env.android.json`): API-restricted only (Android apps cannot hide a key).
 2. Supply each key at build time with `--dart-define-from-file`; never commit it. Create the real
    files from `env.example.json` and `env.android.example.json`.
-3. Keep the release APK to team and booth devices only. Do not publish or share it.
+3. The APK is distributed through a public GitHub Releases page, so anyone can download it and
+   read the Android key inside. That is why it must be a free-tier, no-billing, API-restricted
+   key whose worst case is quota exhaustion: monitor the project quota, and delete the key after
+   the competition. Do not put a billed or unrestricted key in a published build.
 4. **After the competition, delete both keys** in the Google AI Studio project. The app keeps
    building without them; only the assistant is hidden.
 
@@ -229,9 +305,9 @@ architecture.
 
 | Risk | Handling |
 |---|---|
-| Key extraction from a client build | Two restricted free-tier keys in a no-billing project, no billing enabled, per-platform restrictions, build-time supply, no commits, APK limited to team/booth devices, keys deleted after the competition. The production design is a backend proxy. |
+| Key extraction from a client build | Two restricted free-tier keys in a no-billing project, no billing enabled, per-platform restrictions, build-time supply, no commits, keys deleted after the competition. The published APK's Android key is treated as public: free tier, no billing, quota monitored. The production design is a backend proxy. |
 | Quota abuse | Client limiter (6 questions / 10 min, 1.5 s spacing), one request per question, 600 output tokens, no retries except one `503` retry, Demo Mode offline, free-tier quota monitoring. |
-| Wrong answers | Grounded-only instruction, verbatim firmware tier, fixed disclaimer, summary one tap away, no tools, no write path. |
+| Wrong answers | Grounded-only instruction, verbatim firmware tier, a pinned one-line disclaimer under the composer (full wording in the "About this assistant" sheet), summary one tap away, no tools, no write path. |
 | Prompt injection | Visitor text only in the user turn, facts only in the system instruction, explicit ignore rule-changing requests, plain-text output, length cap. |
 | Privacy | No chat storage, no personal data in the payload, no telemetry, no release logging. |
 | Key leak in git | `env.json` and `env.android.json` are gitignored; `tool/check_no_secrets.sh` guards tracked files. |
@@ -304,12 +380,20 @@ The companion app evaluates predictive pre-ventilation rules in a pure decision 
 - While the trigger is `true`, the app reports **Running** and disables the demo button.
 
 #### Decline Detection
-- When a pre-ventilation request is submitted (or when clicking **Run pre-ventilation now (demo)**), the app monitors `/forecast/preventiveTrigger` and the fan state.
+- When a pre-ventilation request is submitted, the app monitors `/forecast/preventiveTrigger` and the fan state.
 - If the firmware resets `preventiveTrigger` back to `false` within 5 seconds without starting the fan, the app presents a floating SnackBar: *"The device declined (permission off or busy)"*.
+
+#### Manual Trigger Is Demo-Only
+- The **"Run pre-ventilation now (demo)"** button is rendered **only in Demo Mode**. In a live build the
+  control is not in the widget tree at all: no disabled button, no placeholder and no reserved space.
+- In live mode the pre-ventilation chain can only fire **automatically**, from the 30-second publisher
+  loop described above. Nothing in the app can force a cycle by hand.
+- The rest of the card (status pill, description) and the team **Settings → Automated Pre-Ventilation**
+  switches behave identically in both modes.
 
 #### Demo Mode Behavior
 - In Demo Mode, the synthetic baseline stays clean and Safe ($< 1400$ ADC) so the automated path displays: *"Unavailable: predicted peak below stuffy threshold"*.
-- Team members can test pre-ventilation actuation using the **"Run pre-ventilation now (demo)"** button on the `ForecastScreen`.
+- Team members can test pre-ventilation actuation using the **"Run pre-ventilation now (demo)"** button on the `ForecastScreen`. It stays disabled with a visible reason when pre-ventilation is off, the device is offline, the room is in Danger, or a cycle is already running, and the decline SnackBar above is shown when the firmware refuses.
 
 ---
 

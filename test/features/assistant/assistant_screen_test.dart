@@ -11,6 +11,7 @@ import 'package:aerosense_app/data/models/system_state.dart';
 import 'package:aerosense_app/data/models/tier.dart';
 import 'package:aerosense_app/data/repositories/assistant_repository.dart';
 import 'package:aerosense_app/data/repositories/providers.dart';
+import 'package:aerosense_app/features/assistant/assistant_copy.dart';
 import 'package:aerosense_app/features/assistant/assistant_providers.dart';
 import 'package:aerosense_app/features/assistant/assistant_screen.dart';
 import 'package:aerosense_app/features/assistant/rate_limiter.dart';
@@ -121,21 +122,27 @@ Widget _harness({
   );
 }
 
+Finder _sendButton() => find.descendant(
+  of: find.byType(TextField),
+  matching: find.byType(IconButton),
+);
+
 void main() {
   testWidgets(
-    'shows chips, the disclaimer, the privacy line and the composer',
+    'shows chips, the short disclaimer, the info button and the composer',
     (tester) async {
       await tester.pumpWidget(_harness());
 
       expect(find.text(AppStrings.assistantIntro), findsOneWidget);
       expect(find.text(AppStrings.assistantChipsEnglish.first), findsOneWidget);
-      expect(find.text(AppStrings.assistantDisclaimer), findsOneWidget);
-      expect(find.text(AppStrings.assistantPrivacy), findsOneWidget);
-      expect(find.text(AppStrings.assistantSend), findsOneWidget);
-
-      final send = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, AppStrings.assistantSend),
+      expect(
+        find.text(AssistantCopy(SummaryLanguage.en).disclaimerShort),
+        findsOneWidget,
       );
+      expect(find.byTooltip('About this assistant'), findsOneWidget);
+      expect(_sendButton(), findsOneWidget);
+
+      final send = tester.widget<IconButton>(_sendButton());
       expect(send.onPressed, isNull);
     },
   );
@@ -143,7 +150,10 @@ void main() {
   testWidgets('shows the scripted disclosure in Demo Mode', (tester) async {
     await tester.pumpWidget(_harness(demo: true));
 
-    expect(find.text(AppStrings.assistantDemoScripted), findsOneWidget);
+    expect(
+      find.text(AssistantCopy(SummaryLanguage.en).demoScriptedNote),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a suggested chip asks a question and shows the answer', (
@@ -170,10 +180,7 @@ void main() {
     await tester.pump();
 
     expect(find.text(AppStrings.assistantThinking), findsOneWidget);
-    final send = tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, AppStrings.assistantSend),
-    );
-    expect(send.onPressed, isNull);
+    expect(tester.widget<IconButton>(_sendButton()).onPressed, isNull);
 
     repository.completer.complete('All good.');
     await tester.pumpAndSettle();
@@ -192,7 +199,7 @@ void main() {
     final editable = tester.widget<EditableText>(find.byType(EditableText));
     expect(editable.controller.text.length, 300);
 
-    await tester.tap(find.text(AppStrings.assistantSend));
+    await tester.tap(_sendButton());
     await tester.pumpAndSettle();
 
     expect(repository.questions.single.length, 300);
@@ -238,6 +245,10 @@ void main() {
     expect(repository.questions.length, 1);
 
     clock.advance(const Duration(seconds: 2));
+    // The error card is taller than the test viewport, so bring the button
+    // into view before tapping it.
+    await tester.ensureVisible(find.text(AppStrings.assistantTryAgain));
+    await tester.pumpAndSettle();
     await tester.tap(find.text(AppStrings.assistantTryAgain));
     await tester.pumpAndSettle();
 
@@ -287,8 +298,11 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(tester.takeException(), isNull);
-        expect(find.text(AppStrings.assistantDisclaimer), findsOneWidget);
-        expect(find.text(AppStrings.assistantPrivacy), findsOneWidget);
+        expect(
+          find.text(AssistantCopy(SummaryLanguage.en).disclaimerShort),
+          findsOneWidget,
+        );
+        expect(find.byTooltip('About this assistant'), findsOneWidget);
       },
     );
   }

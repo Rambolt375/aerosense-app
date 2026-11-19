@@ -189,6 +189,56 @@ void main() {
     expect(state.messages.first.text, 'question 1');
   });
 
+  test(
+    'exposes the in-flight question but never sends it as history',
+    () async {
+      final repository = _PendingRepository();
+      final container = _container(repository: repository);
+      final notifier = container.read(assistantChatProvider.notifier);
+
+      final pending = notifier.ask('How is it?');
+      // The visitor bubble is available immediately, before the answer.
+      final thinking = container.read(assistantChatProvider);
+      expect(thinking.status, AssistantStatus.thinking);
+      expect(thinking.pendingQuestion, 'How is it?');
+      expect(thinking.messages, isEmpty);
+
+      repository.completer.complete('It is Caution.');
+      await pending;
+
+      final answered = container.read(assistantChatProvider);
+      expect(answered.pendingQuestion, isNull);
+      expect(answered.messages.length, 2);
+    },
+  );
+
+  test(
+    'history holds previous messages only, capped at the last four',
+    () async {
+      final repository = _RecordingRepository();
+      final clock = _TestClock(DateTime(2026, 11, 15, 14, 10));
+      final container = _container(repository: repository, clock: clock);
+      final notifier = container.read(assistantChatProvider.notifier);
+
+      for (var i = 0; i < 4; i++) {
+        clock.advance(const Duration(seconds: 2));
+        await notifier.ask('question $i');
+      }
+
+      for (final call in repository.calls) {
+        expect(
+          call.history.length,
+          lessThanOrEqualTo(AppConfig.assistantMaxMessages),
+        );
+        expect(
+          call.history.any((m) => m.text == call.question),
+          isFalse,
+          reason: 'the in-flight question must not be part of the history',
+        );
+      }
+    },
+  );
+
   test('rejects questions faster than the minimum spacing', () async {
     final repository = _RecordingRepository();
     final clock = _TestClock(DateTime(2026, 11, 15, 14, 10));

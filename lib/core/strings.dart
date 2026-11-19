@@ -131,11 +131,9 @@ class AppStrings {
   static const assistantIntro =
       'Ask about the readings in this room. Answers are based only on what the '
       'device reports.';
-  static const assistantDisclaimer =
-      'AI-generated, may be wrong. The device alert is authoritative.';
-  static const assistantPrivacy =
-      "Questions are sent to Google's Gemini service. "
-      "Don't type personal information.";
+  // The disclaimer, privacy line and scripted-answers note live in
+  // `features/assistant/assistant_copy.dart` because they follow the language
+  // selector.
   static const assistantInputHint = 'Ask about this room';
   static const assistantSend = 'Send';
   static const assistantThinking = 'Thinking...';
@@ -150,8 +148,6 @@ class AppStrings {
       'The assistant is busy right now. Try again in a minute.';
   static const assistantFailureNoConnection = 'No connection.';
   static const assistantFailureNoAnswer = "I couldn't answer that.";
-  static const assistantDemoScripted =
-      'Demo Mode: answers are scripted, not from Gemini.';
   static const assistantRateLimitedTitle = 'Question limit reached';
   static String assistantRateLimitedBody(String wait) =>
       'You can ask again in $wait. Here is the room summary.';

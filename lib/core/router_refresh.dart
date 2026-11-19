@@ -1,21 +1,12 @@
-import 'dart:async';
-
 import 'package:flutter/foundation.dart';
 
-/// A [ChangeNotifier] that calls [notifyListeners] on each stream event.
+/// A [ChangeNotifier] driven by explicit calls instead of a stream.
 ///
-/// Used to wire a [Stream] to [GoRouter.refreshListenable] so the router
-/// re-evaluates its redirect callback whenever the auth state changes.
-class GoRouterRefreshStream extends ChangeNotifier {
-  GoRouterRefreshStream(Stream<dynamic> stream) {
-    _subscription = stream.listen((_) => notifyListeners());
-  }
-
-  late final StreamSubscription<dynamic> _subscription;
-
-  @override
-  void dispose() {
-    _subscription.cancel();
-    super.dispose();
-  }
+/// The router reads the auth state inside its `redirect` and is refreshed
+/// through this notifier, so an auth event re-runs the redirect without
+/// rebuilding the router. Rebuilding would create a new router at the initial
+/// location and lose both the current page and a pending deep link.
+class RouterRefreshNotifier extends ChangeNotifier {
+  /// Re-runs the router's `redirect` callback.
+  void refresh() => notifyListeners();
 }
