@@ -330,10 +330,10 @@
     - Accessibility supported with `Semantics(liveRegion: true)`. Banner hidden on Dashboard tab (active only on History, Forecast, and Settings).
   - Built `SettingsScreen`:
     - Appearance: 3-way `SegmentedButton` (System / Light / Dark) wired to `themeModeProvider`.
-    - Safety Thresholds: strictly read-only values interpolated dynamically from `Thresholds.current` (no literals); labelled "Source: built-in (firmware defaults)" or "Demo preset" with a `// TODO(confirm)` hook for firmware schema definition. Humidity has visible caveat: "Not yet confirmed in the firmware".
+    - Safety Thresholds: strictly read-only values interpolated dynamically from `Thresholds.current` (no literals); labelled "Source: built-in (firmware defaults)" or "Demo preset" with a `// TODO(confirm)` hook for firmware schema definition. Humidity rows are Demo-Mode only, with the caveat "Not yet confirmed in the firmware" (hidden for normal/live users).
     - Forecast Parameters: read-only values interpolated from `AppConfig` (multiplier, span, bins, tolerances, hysteresis, $R^2$).
     - Demo Controls: switch + scenario triggers (Kitchen Smoke, Heat Spike, Sensor Unplugged with "stops reporting" description, and Reset to Baseline).
-    - Session & App Info: `AppConfig.appVersion` (`1.0.0+1`), database region, and sign-out confirmation dialog.
+    - Session & App Info: `AppConfig.appVersion` (`1.0.1+2`), database region, and sign-out confirmation dialog.
   - Added `test/core/app_version_test.dart` asserting that `AppConfig.appVersion` matches `pubspec.yaml`.
   - Updated `android/app/src/main/AndroidManifest.xml` with `android.permission.INTERNET` and `android:label="AeroSense"`.
   - Updated `firebase.json` with web hosting configuration (public `build/web` and SPA rewrites to `/index.html`).

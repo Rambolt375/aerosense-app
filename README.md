@@ -19,7 +19,7 @@ The ESP32 firmware is the sole authority for room safety classification (**Safe*
 Tested and built against:
 - **Flutter SDK**: `3.47.9` (channel `stable`)
 - **Dart SDK**: `3.13.7`
-- **Application Version**: `1.0.0+1` (defined in `pubspec.yaml` and `lib/core/config.dart`)
+- **Application Version**: `1.0.1+2` (defined in `pubspec.yaml` and `lib/core/config.dart`)
 - **Firebase Regional RTDB**: `asia-southeast1` (`https://aerosense-502de-default-rtdb.asia-southeast1.firebasedatabase.app`)
 - **Supported Targets**: Android (API 21+) and Web (modern desktop/mobile browsers)
 

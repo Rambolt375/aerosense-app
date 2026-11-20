@@ -448,34 +448,39 @@ class SettingsScreen extends ConsumerWidget {
                         ],
                       ),
 
-                      const Divider(height: 24),
-
                       // Relative Humidity rows
-                      _buildThresholdSection(
-                        context,
-                        title: 'Relative Humidity',
-                        subtitle: 'Not yet confirmed in the firmware',
-                        rows: [
-                          _ThresholdRow(
-                            label: 'Safe',
-                            value:
-                                '< ${Thresholds.humidityCautionMin.toInt()} %',
-                            color: context.tierColors.safe,
-                          ),
-                          _ThresholdRow(
-                            label: 'Caution',
-                            value:
-                                '>= ${Thresholds.humidityCautionMin.toInt()} %',
-                            color: context.tierColors.medium,
-                          ),
-                          _ThresholdRow(
-                            label: 'Danger',
-                            value:
-                                '>= ${Thresholds.humidityDangerMin.toInt()} %',
-                            color: context.tierColors.danger,
-                          ),
-                        ],
-                      ),
+                      //
+                      // Only surfaced in Demo Mode: the humidity thresholds are
+                      // not yet confirmed against the firmware schema, so they
+                      // are hidden for normal (live) users.
+                      if (isDemo) ...[
+                        const Divider(height: 24),
+                        _buildThresholdSection(
+                          context,
+                          title: 'Relative Humidity',
+                          subtitle: 'Not yet confirmed in the firmware',
+                          rows: [
+                            _ThresholdRow(
+                              label: 'Safe',
+                              value:
+                                  '< ${Thresholds.humidityCautionMin.toInt()} %',
+                              color: context.tierColors.safe,
+                            ),
+                            _ThresholdRow(
+                              label: 'Caution',
+                              value:
+                                  '>= ${Thresholds.humidityCautionMin.toInt()} %',
+                              color: context.tierColors.medium,
+                            ),
+                            _ThresholdRow(
+                              label: 'Danger',
+                              value:
+                                  '>= ${Thresholds.humidityDangerMin.toInt()} %',
+                              color: context.tierColors.danger,
+                            ),
+                          ],
+                        ),
+                      ],
                     ],
                   ),
                 ),

@@ -87,8 +87,9 @@ void main() {
         findsOneWidget,
       );
 
-      // Humidity caveat text
-      expect(find.text('Not yet confirmed in the firmware'), findsOneWidget);
+      // Humidity section is demo-only
+      expect(find.text('Relative Humidity'), findsNothing);
+      expect(find.text('Not yet confirmed in the firmware'), findsNothing);
 
       // Forecast Parameters
       expect(find.text('Forecast Parameters'), findsOneWidget);
@@ -128,6 +129,8 @@ void main() {
 
         expect(find.text('Demo preset'), findsOneWidget);
         expect(find.text('Run the demo'), findsOneWidget);
+        expect(find.text('Relative Humidity'), findsOneWidget);
+        expect(find.text('Not yet confirmed in the firmware'), findsOneWidget);
         expect(find.text('Simulate Kitchen Smoke'), findsOneWidget);
         expect(find.text('Simulate Heat Spike'), findsOneWidget);
         expect(find.text('Simulate Sensor Unplugged'), findsOneWidget);

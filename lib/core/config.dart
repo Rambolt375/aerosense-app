@@ -3,7 +3,7 @@ class AppConfig {
   AppConfig._();
 
   /// Application version string matching pubspec.yaml.
-  static const String appVersion = '1.0.0+1';
+  static const String appVersion = '1.0.1+2';
 
   /// Whether user self-signup is permitted in the UI.
   /// Accounts are managed in Firebase Console by default.
